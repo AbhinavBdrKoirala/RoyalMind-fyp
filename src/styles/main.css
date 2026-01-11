@@ -1,0 +1,19 @@
+body {
+  font-family: Arial, sans-serif;
+}
+
+#app {
+  margin-top: 20px;
+}
+.board {
+  display: grid;
+  grid-template-columns: repeat(4, 60px);
+  gap: 4px;
+}
+
+.cell {
+  width: 60px;
+  height: 60px;
+  background-color: #ddd;
+  border: 1px solid #999;
+}
