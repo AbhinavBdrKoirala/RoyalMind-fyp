@@ -1,19 +1,47 @@
-body {
-  font-family: Arial, sans-serif;
-}
-
-#app {
-  margin-top: 20px;
-}
 .board {
   display: grid;
-  grid-template-columns: repeat(4, 60px);
-  gap: 4px;
+  grid-template-columns: repeat(8, 60px);
+  width: fit-content;
 }
 
 .cell {
   width: 60px;
   height: 60px;
-  background-color: #ddd;
-  border: 1px solid #999;
+}
+
+.light {
+  background-color: #f0d9b5;
+}
+
+.dark {
+  background-color: #b58863;
+}
+.cell {
+  cursor: pointer;
+}
+.selected {
+  outline: 3px solid red;
+}
+.source {
+  outline: 3px solid blue;
+}
+
+.destination {
+  outline: 3px solid green;
+}
+.piece {
+  font-size: 24px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 60px;
+}
+
+.source {
+  outline: 3px solid blue;
+}
+.piece {
+  font-size: 22px;
+  font-weight: bold;
+  text-align: center;
+  line-height: 60px;
 }
