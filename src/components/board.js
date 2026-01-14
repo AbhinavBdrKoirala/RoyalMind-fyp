@@ -1,86 +1,103 @@
-let sourcePosition = null;
+let selectedSquare = null;
+let selectedPiece = null;
 
-// 8x8 board state
-const boardState = [
-  ["r", "n", "b", "q", "k", "b", "n", "r"],
-  ["p", "p", "p", "p", "p", "p", "p", "p"],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  [null, null, null, null, null, null, null, null],
-  ["P", "P", "P", "P", "P", "P", "P", "P"],
-  ["R", "N", "B", "Q", "K", "B", "N", "R"]
+let boardState = [
+    ["br","bn","bb","bq","bk","bb","bn","br"],
+    ["bp","bp","bp","bp","bp","bp","bp","bp"],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["","","","","","","",""],
+    ["wp","wp","wp","wp","wp","wp","wp","wp"],
+    ["wr","wn","wb","wq","wk","wb","wn","wr"]
 ];
 
+const pieceMap = {
+    wp: "white_pawn.png",
+    wr: "white_rook.png",
+    wn: "white_knight.png",
+    wb: "white_bishop.png",
+    wq: "white_queen.png",
+    wk: "white_king.png",
+    bp: "black_pawn.png",
+    br: "black_rook.png",
+    bn: "black_knight.png",
+    bb: "black_bishop.png",
+    bq: "black_queen.png",
+    bk: "black_king.png"
+};
+
 export function createBoard() {
-  const board = document.createElement("div");
-  board.className = "board";
+    const boardElement = document.getElementById("chessboard");
+    boardElement.innerHTML = "";
 
-  renderBoard(board);
-  return board;
-}
+    for (let row = 0; row < 8; row++) {
+        for (let col = 0; col < 8; col++) {
 
-function renderBoard(board) {
-  board.innerHTML = "";
+            const square = document.createElement("div");
+            square.classList.add("square");
 
-  for (let row = 0; row < 8; row++) {
-    for (let col = 0; col < 8; col++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
+            square.dataset.row = row;
+            square.dataset.col = col;
 
-      cell.dataset.row = row;
-      cell.dataset.col = col;
+            const isLight = (row + col) % 2 === 0;
+            square.classList.add(isLight ? "light" : "dark");
 
-      if ((row + col) % 2 === 0) {
-        cell.classList.add("light");
-      } else {
-        cell.classList.add("dark");
-      }
+            square.addEventListener("click", () => handleSquareClick(square));
 
-      const piece = boardState[row][col];
-      if (piece) {
-        cell.textContent = piece;
-        cell.classList.add("piece");
-      }
+            const piece = boardState[row][col];
+            if (piece !== "") {
+                const img = document.createElement("img");
+                img.src = `src/assets/pieces/${pieceMap[piece]}`;
+                img.alt = piece;
+                square.appendChild(img);
+            }
 
-      cell.addEventListener("click", () =>
-        handleCellClick(row, col)
-      );
-
-      board.appendChild(cell);
+            boardElement.appendChild(square);
+        }
     }
-  }
 }
 
-function handleCellClick(row, col) {
-  // Select piece
-  if (!sourcePosition) {
-    if (!boardState[row][col]) return;
+function handleSquareClick(square) {
+    const row = Number(square.dataset.row);
+    const col = Number(square.dataset.col);
+    const piece = boardState[row][col];
 
-    sourcePosition = { row, col };
-    highlightCell(row, col);
-    return;
-  }
+    // Select piece
+    if (!selectedPiece) {
+        if (piece !== "") {
+            selectedPiece = { piece, row, col };
+            selectedSquare = square;
+            square.classList.add("selected");
+        }
+        return;
+    }
 
-  // Move piece (NO validation)
-  const { row: srcRow, col: srcCol } = sourcePosition;
-
-  boardState[row][col] = boardState[srcRow][srcCol];
-  boardState[srcRow][srcCol] = null;
-
-  sourcePosition = null;
-
-  const board = document.querySelector(".board");
-  renderBoard(board);
+    // Try move
+    tryMove(selectedPiece, row, col);
+    clearSelection();
+    createBoard();
 }
 
-function highlightCell(row, col) {
-  const cells = document.querySelectorAll(".cell");
-  cells.forEach(cell => cell.classList.remove("source"));
+function tryMove(selected, targetRow, targetCol) {
+    const { piece, row, col } = selected;
 
-  const selected = document.querySelector(
-    `.cell[data-row="${row}"][data-col="${col}"]`
-  );
+    // White pawn movement
+    if (
+        piece === "wp" &&
+        targetRow === row - 1 &&
+        targetCol === col &&
+        boardState[targetRow][targetCol] === ""
+    ) {
+        boardState[targetRow][targetCol] = piece;
+        boardState[row][col] = "";
+    }
+}
 
-  if (selected) selected.classList.add("source");
+function clearSelection() {
+    if (selectedSquare) {
+        selectedSquare.classList.remove("selected");
+    }
+    selectedSquare = null;
+    selectedPiece = null;
 }
