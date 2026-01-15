@@ -40,3 +40,6 @@ body {
 .square:hover {
     cursor: pointer;
 }
+.square img {
+    pointer-events: none;
+}
