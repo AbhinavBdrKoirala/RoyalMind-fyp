@@ -241,6 +241,108 @@ function tryMove(selected, targetRow, targetCol) {
         boardState[row][col] = "";
         return true;
     }
+    // BISHOP (WHITE & BLACK)
+    if (piece === "wb" || piece === "bb") {
+
+        const rowDiff = targetRow - row;
+        const colDiff = targetCol - col;
+
+        // Must move diagonally
+        if (Math.abs(rowDiff) !== Math.abs(colDiff)) {
+            return false;
+        }
+
+        const rowStep = rowDiff > 0 ? 1 : -1;
+        const colStep = colDiff > 0 ? 1 : -1;
+
+        let currentRow = row + rowStep;
+        let currentCol = col + colStep;
+
+        // Check path blocking
+        while (currentRow !== targetRow && currentCol !== targetCol) {
+            if (boardState[currentRow][currentCol] !== "") {
+                return false;
+            }
+            currentRow += rowStep;
+            currentCol += colStep;
+        }
+
+        const targetPiece = boardState[targetRow][targetCol];
+
+        // Cannot capture own piece
+        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+            return false;
+        }
+
+        // Move or capture
+        boardState[targetRow][targetCol] = piece;
+        boardState[row][col] = "";
+        return true;
+    }
+    // QUEEN (WHITE & BLACK)
+    if (piece === "wq" || piece === "bq") {
+
+        const rowDiff = targetRow - row;
+        const colDiff = targetCol - col;
+
+        const isStraight = row === targetRow || col === targetCol;
+        const isDiagonal = Math.abs(rowDiff) === Math.abs(colDiff);
+
+        // Must be straight or diagonal
+        if (!isStraight && !isDiagonal) {
+            return false;
+        }
+
+        const rowStep = rowDiff === 0 ? 0 : rowDiff > 0 ? 1 : -1;
+        const colStep = colDiff === 0 ? 0 : colDiff > 0 ? 1 : -1;
+
+        let currentRow = row + rowStep;
+        let currentCol = col + colStep;
+
+        // Check path blocking
+        while (currentRow !== targetRow || currentCol !== targetCol) {
+            if (boardState[currentRow][currentCol] !== "") {
+                return false;
+            }
+            currentRow += rowStep;
+            currentCol += colStep;
+        }
+
+        const targetPiece = boardState[targetRow][targetCol];
+
+        // Cannot capture own piece
+        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+            return false;
+        }
+
+        // Move or capture
+        boardState[targetRow][targetCol] = piece;
+        boardState[row][col] = "";
+        return true;
+    }
+    // KING (WHITE & BLACK)
+    if (piece === "wk" || piece === "bk") {
+
+        const rowDiff = Math.abs(targetRow - row);
+        const colDiff = Math.abs(targetCol - col);
+
+        // King moves only one square
+        if (rowDiff > 1 || colDiff > 1) {
+            return false;
+        }
+
+        const targetPiece = boardState[targetRow][targetCol];
+
+        // Cannot capture own piece
+        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+            return false;
+        }
+
+        // Move or capture
+        boardState[targetRow][targetCol] = piece;
+        boardState[row][col] = "";
+        return true;
+    }
 
 
     return false;
