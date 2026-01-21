@@ -104,6 +104,13 @@ function handleSquareClick(square) {
 function tryMove(selected, targetRow, targetCol) {
     const { piece, row, col } = selected;
 
+    if (isValidMove(boardState, piece, row, col, targetRow, targetCol) && isMoveSafe(boardState, piece, row, col, targetRow, targetCol)) {
+        boardState[targetRow][targetCol] = piece;
+        boardState[row][col] = "";
+        return true;
+    }
+    
+
     // WHITE PAWN
     if (piece === "wp") {
         // One step
@@ -356,3 +363,43 @@ function clearSelection() {
     selectedSquare = null;
     selectedPiece = null;
 }
+function findKing(board, color) {
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece && piece.type === "king" && piece.color === color) {
+                return { row: r, col: c };
+            }
+        }
+    }
+    return null;
+}
+
+function isKingInCheck(board, color) {
+    const kingPos = findKing(board, color);
+    if (!kingPos) return false;
+
+    const enemyColor = color === "white" ? "black" : "white";
+
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = board[r][c];
+            if (piece && piece.color === enemyColor) {
+                if (isValidMove(board, piece, r, c, kingPos.row, kingPos.col)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function isMoveSafe(board, piece, fromRow, fromCol, toRow, toCol) {
+    const tempBoard = board.map(row => row.slice());
+
+    tempBoard[toRow][toCol] = piece;
+    tempBoard[fromRow][fromCol] = null;
+
+    return !isKingInCheck(tempBoard, piece.color);
+}
+
