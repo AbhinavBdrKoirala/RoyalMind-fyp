@@ -1,6 +1,8 @@
 let selectedSquare = null;
 let selectedPiece = null;
 let currentTurn = "white";
+let promotionSquare = null;
+let promotionColor = null;
 
 
 let boardState = [
@@ -104,11 +106,7 @@ function handleSquareClick(square) {
 function tryMove(selected, targetRow, targetCol) {
     const { piece, row, col } = selected;
 
-    if (isValidMove(boardState, piece, row, col, targetRow, targetCol) && isMoveSafe(boardState, piece, row, col, targetRow, targetCol)) {
-        boardState[targetRow][targetCol] = piece;
-        boardState[row][col] = "";
-        return true;
-    }
+    
     
 
     // WHITE PAWN
@@ -144,8 +142,17 @@ function tryMove(selected, targetRow, targetCol) {
             ) {
             boardState[targetRow][targetCol] = piece;
             boardState[row][col] = "";
+
+            // PROMOTE WHITE PAWN
+            if (targetRow === 0) {
+                const promotedPiece = promotePawn("white");
+                if (promotedPiece) {
+                    boardState[targetRow][targetCol] = promotedPiece;
+                }
+            }
             return true;
         }
+
     }
     
 
@@ -159,6 +166,7 @@ function tryMove(selected, targetRow, targetCol) {
         ) {
             boardState[targetRow][targetCol] = piece;
             boardState[row][col] = "";
+
             return true;
         }
 
@@ -182,6 +190,15 @@ function tryMove(selected, targetRow, targetCol) {
         ) {
             boardState[targetRow][targetCol] = piece;
             boardState[row][col] = "";
+
+            // PROMOTE BLACK PAWN
+            
+            if (targetRow === 7) {
+                const promotedPiece = promotePawn("black");
+                if (promotedPiece) {
+                    boardState[targetRow][targetCol] = promotedPiece;
+                }
+            }
             return true;
         }
     }
@@ -355,6 +372,23 @@ function tryMove(selected, targetRow, targetCol) {
     return false;
 }
 
+function promotePawn(color) {
+    let choice = prompt(
+        "Promote pawn to: Q (Queen), R (Rook), B (Bishop), N (Knight)"
+    );
+
+    if (!choice) return null;
+
+    choice = choice.toUpperCase();
+
+    if (choice === "Q") return color === "white" ? "wq" : "bq";
+    if (choice === "R") return color === "white" ? "wr" : "br";
+    if (choice === "B") return color === "white" ? "wb" : "bb";
+    if (choice === "N") return color === "white" ? "wn" : "bn";
+
+    alert("Invalid choice. Defaulting to Queen.");
+    return color === "white" ? "wq" : "bq";
+}
 
 function clearSelection() {
     if (selectedSquare) {
@@ -363,43 +397,73 @@ function clearSelection() {
     selectedSquare = null;
     selectedPiece = null;
 }
-function findKing(board, color) {
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const piece = board[r][c];
-            if (piece && piece.type === "king" && piece.color === color) {
-                return { row: r, col: c };
-            }
-        }
-    }
-    return null;
+function showPromotion(row, col, color) {
+    promotionSquare = { row, col };
+    promotionColor = color;
+
+    const modal = document.getElementById("promotionModal");
+    const imgs = modal.querySelectorAll("img");
+
+    imgs.forEach(img => {
+        const piece = img.dataset.piece;
+        img.src = `src/assets/pieces/${color}_${piece === "n" ? "knight" :
+                                          piece === "b" ? "bishop" :
+                                          piece === "r" ? "rook" :
+                                          "queen"}.png`;
+    });
+
+    modal.classList.remove("hidden");
 }
+document.addEventListener("click", e => {
+    if (!e.target.matches("#promotionModal img")) return;
 
-function isKingInCheck(board, color) {
-    const kingPos = findKing(board, color);
-    if (!kingPos) return false;
+    const pieceType = e.target.dataset.piece;
+    const colorPrefix = promotionColor === "white" ? "w" : "b";
 
-    const enemyColor = color === "white" ? "black" : "white";
+    boardState[promotionSquare.row][promotionSquare.col] =
+        colorPrefix + pieceType;
 
-    for (let r = 0; r < 8; r++) {
-        for (let c = 0; c < 8; c++) {
-            const piece = board[r][c];
-            if (piece && piece.color === enemyColor) {
-                if (isValidMove(board, piece, r, c, kingPos.row, kingPos.col)) {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
-}
+    document.getElementById("promotionModal").classList.add("hidden");
+    createBoard();
+});
 
-function isMoveSafe(board, piece, fromRow, fromCol, toRow, toCol) {
-    const tempBoard = board.map(row => row.slice());
+// function findKing(board, color) {
+//     for (let r = 0; r < 8; r++) {
+//         for (let c = 0; c < 8; c++) {
+//             const piece = board[r][c];
+//             if (piece && piece.type === "king" && piece.color === color) {
+//                 return { row: r, col: c };
+//             }
+//         }
+//     }
+//     return null;
+// }
 
-    tempBoard[toRow][toCol] = piece;
-    tempBoard[fromRow][fromCol] = null;
+// function isKingInCheck(board, color) {
+//     const kingPos = findKing(board, color);
+//     if (!kingPos) return false;
 
-    return !isKingInCheck(tempBoard, piece.color);
-}
+//     const enemyColor = color === "white" ? "black" : "white";
+
+//     for (let r = 0; r < 8; r++) {
+//         for (let c = 0; c < 8; c++) {
+//             const piece = board[r][c];
+//             if (piece && piece.color === enemyColor) {
+//                 if (isValidMove(board, piece, r, c, kingPos.row, kingPos.col)) {
+//                     return true;
+//                 }
+//             }
+//         }
+//     }
+//     return false;
+// }
+
+// function isMoveSafe(board, piece, fromRow, fromCol, toRow, toCol) {
+//     const tempBoard = board.map(row => row.slice());
+
+//     tempBoard[toRow][toCol] = piece;
+//     tempBoard[fromRow][fromCol] = null;
+
+//     return !isKingInCheck(tempBoard, piece.color);
+// }
 

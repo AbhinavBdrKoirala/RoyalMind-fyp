@@ -43,3 +43,37 @@ body {
 .square img {
     pointer-events: none;
 }
+/* ===============================
+   Pawn Promotion Modal
+================================ */
+
+.promotion-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.promotion-box {
+  background: #fff;
+  padding: 15px;
+  display: flex;
+  gap: 15px;
+  border-radius: 8px;
+}
+
+.promotion-box img {
+  width: 60px;
+  height: 60px;
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
