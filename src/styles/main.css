@@ -77,3 +77,46 @@ body {
 .hidden {
   display: none;
 }
+#promotion-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.promotion-container {
+    background: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    display: flex;
+    gap: 15px;
+}
+
+.promotion-piece {
+    width: 60px;
+    height: 60px;
+    cursor: pointer;
+}
+
+.promotion-piece:hover {
+    transform: scale(1.15);
+}
+.status-message {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: red;
+    font-weight: bold;
+    font-size: 16px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+.square.check {
+    background-color: red !important; /* or use a red border if you prefer */
+    opacity: 0.7; /* optional: makes it slightly transparent */
+}

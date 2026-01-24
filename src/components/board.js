@@ -56,7 +56,11 @@ export function createBoard() {
                 img.alt = piece;
                 square.appendChild(img);
             }
-
+            // ⚡ MARK KING IN CHECK
+            const kingColor = piece === "wk" ? "white" : piece === "bk" ? "black" : null;
+            if (kingColor && isKingInCheck(kingColor)) {
+                square.classList.add("check"); // this adds the red highlight
+            }
             boardElement.appendChild(square);
         }
     }
@@ -95,6 +99,8 @@ function handleSquareClick(square) {
 
     if (moved) {
         currentTurn = currentTurn === "white" ? "black" : "white";
+    }else {
+    showStatusMessage("Illegal move");
     }
 
     clearSelection();
@@ -103,274 +109,300 @@ function handleSquareClick(square) {
 
 
 
+// function tryMove(selected, targetRow, targetCol) {
+//     const { piece, row, col } = selected;
+
+
+//     // WHITE PAWN
+//     if (piece === "wp") {
+
+//         // Forward one
+//         if (targetRow === row - 1 && targetCol === col && boardState[targetRow][targetCol] === "") {
+//             boardState[targetRow][targetCol] = piece;
+//             boardState[row][col] = "";
+
+//             if (targetRow === 0) {
+//                 showPromotionUI("white", promoted => {
+//                     boardState[targetRow][targetCol] = promoted;
+//                     createBoard();
+//                 });
+//             }
+//             return true;
+//         }
+
+//         // Forward two
+//         if (
+//             row === 6 &&
+//             targetRow === 4 &&
+//             targetCol === col &&
+//             boardState[5][col] === "" &&
+//             boardState[4][col] === ""
+//         ) {
+//             boardState[4][col] = piece;
+//             boardState[row][col] = "";
+//             return true;
+//         }
+
+//         // Capture
+//         if (
+//             targetRow === row - 1 &&
+//             (targetCol === col - 1 || targetCol === col + 1) &&
+//             boardState[targetRow][targetCol].startsWith("b")
+//         ) {
+//             boardState[targetRow][targetCol] = piece;
+//             boardState[row][col] = "";
+
+//             if (targetRow === 0) {
+//                 showPromotionUI("white", promoted => {
+//                     boardState[targetRow][targetCol] = promoted;
+//                     createBoard();
+//                 });
+//             }
+//             return true;
+//         }
+//     }
+
+    
+
+//     // BLACK PAWN
+//     if (piece === "bp") {
+
+//         if (targetRow === row + 1 && targetCol === col && boardState[targetRow][targetCol] === "") {
+//             boardState[targetRow][targetCol] = piece;
+//             boardState[row][col] = "";
+
+//             if (targetRow === 7) {
+//                 showPromotionUI("black", promoted => {
+//                     boardState[targetRow][targetCol] = promoted;
+//                     createBoard();
+//                 });
+//             }
+//             return true;
+//         }
+
+//         if (
+//             row === 1 &&
+//             targetRow === 3 &&
+//             targetCol === col &&
+//             boardState[2][col] === "" &&
+//             boardState[3][col] === ""
+//         ) {
+//             boardState[3][col] = piece;
+//             boardState[row][col] = "";
+//             return true;
+//         }
+
+//         if (
+//             targetRow === row + 1 &&
+//             (targetCol === col - 1 || targetCol === col + 1) &&
+//             boardState[targetRow][targetCol].startsWith("w")
+//         ) {
+//             boardState[targetRow][targetCol] = piece;
+//             boardState[row][col] = "";
+
+//             if (targetRow === 7) {
+//                 showPromotionUI("black", promoted => {
+//                     boardState[targetRow][targetCol] = promoted;
+//                     createBoard();
+//                 });
+//             }
+//             return true;
+//         }
+//     }
+
+
+//     // ROOK (WHITE & BLACK)
+//     if (piece === "wr" || piece === "br") {
+
+//         // Must move in straight line
+//         if (row !== targetRow && col !== targetCol) {
+//             return false;
+//         }
+
+//         const rowStep = targetRow > row ? 1 : targetRow < row ? -1 : 0;
+//         const colStep = targetCol > col ? 1 : targetCol < col ? -1 : 0;
+
+//         let currentRow = row + rowStep;
+//         let currentCol = col + colStep;
+
+//         // Check path blocking
+//         while (currentRow !== targetRow || currentCol !== targetCol) {
+//             if (boardState[currentRow][currentCol] !== "") {
+//                 return false;
+//             }
+//             currentRow += rowStep;
+//             currentCol += colStep;
+//         }
+
+//         // Destination square
+//         const targetPiece = boardState[targetRow][targetCol];
+
+//         // Cannot capture own piece
+//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+//             return false;
+//         }
+
+//         // Move or capture
+//         boardState[targetRow][targetCol] = piece;
+//         boardState[row][col] = "";
+//         return true;
+//     }
+//     // KNIGHT (WHITE & BLACK)
+//     if (piece === "wn" || piece === "bn") {
+
+//         const rowDiff = Math.abs(targetRow - row);
+//         const colDiff = Math.abs(targetCol - col);
+
+//         // Knight L-shape
+//         const isValidMove =
+//             (rowDiff === 2 && colDiff === 1) ||
+//             (rowDiff === 1 && colDiff === 2);
+
+//         if (!isValidMove) {
+//             return false;
+//         }
+
+//         const targetPiece = boardState[targetRow][targetCol];
+
+//         // Cannot capture own piece
+//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+//             return false;
+//         }
+
+//         // Move or capture
+//         boardState[targetRow][targetCol] = piece;
+//         boardState[row][col] = "";
+//         return true;
+//     }
+//     // BISHOP (WHITE & BLACK)
+//     if (piece === "wb" || piece === "bb") {
+
+//         const rowDiff = targetRow - row;
+//         const colDiff = targetCol - col;
+
+//         // Must move diagonally
+//         if (Math.abs(rowDiff) !== Math.abs(colDiff)) {
+//             return false;
+//         }
+
+//         const rowStep = rowDiff > 0 ? 1 : -1;
+//         const colStep = colDiff > 0 ? 1 : -1;
+
+//         let currentRow = row + rowStep;
+//         let currentCol = col + colStep;
+
+//         // Check path blocking
+//         while (currentRow !== targetRow && currentCol !== targetCol) {
+//             if (boardState[currentRow][currentCol] !== "") {
+//                 return false;
+//             }
+//             currentRow += rowStep;
+//             currentCol += colStep;
+//         }
+
+//         const targetPiece = boardState[targetRow][targetCol];
+
+//         // Cannot capture own piece
+//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+//             return false;
+//         }
+
+//         // Move or capture
+//         boardState[targetRow][targetCol] = piece;
+//         boardState[row][col] = "";
+//         return true;
+//     }
+//     // QUEEN (WHITE & BLACK)
+//     if (piece === "wq" || piece === "bq") {
+
+//         const rowDiff = targetRow - row;
+//         const colDiff = targetCol - col;
+
+//         const isStraight = row === targetRow || col === targetCol;
+//         const isDiagonal = Math.abs(rowDiff) === Math.abs(colDiff);
+
+//         // Must be straight or diagonal
+//         if (!isStraight && !isDiagonal) {
+//             return false;
+//         }
+
+//         const rowStep = rowDiff === 0 ? 0 : rowDiff > 0 ? 1 : -1;
+//         const colStep = colDiff === 0 ? 0 : colDiff > 0 ? 1 : -1;
+
+//         let currentRow = row + rowStep;
+//         let currentCol = col + colStep;
+
+//         // Check path blocking
+//         while (currentRow !== targetRow || currentCol !== targetCol) {
+//             if (boardState[currentRow][currentCol] !== "") {
+//                 return false;
+//             }
+//             currentRow += rowStep;
+//             currentCol += colStep;
+//         }
+
+//         const targetPiece = boardState[targetRow][targetCol];
+
+//         // Cannot capture own piece
+//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+//             return false;
+//         }
+
+//         // Move or capture
+//         boardState[targetRow][targetCol] = piece;
+//         boardState[row][col] = "";
+//         return true;
+//     }
+//     // KING (WHITE & BLACK)
+//     if (piece === "wk" || piece === "bk") {
+
+//         const rowDiff = Math.abs(targetRow - row);
+//         const colDiff = Math.abs(targetCol - col);
+
+//         // King moves only one square
+//         if (rowDiff > 1 || colDiff > 1) {
+//             return false;
+//         }
+
+//         const targetPiece = boardState[targetRow][targetCol];
+
+//         // Cannot capture own piece
+//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
+//             return false;
+//         }
+
+//         // Move or capture
+//         boardState[targetRow][targetCol] = piece;
+//         boardState[row][col] = "";
+//         return true;
+//     }
+
+
+//     return false;
+// }
 function tryMove(selected, targetRow, targetCol) {
     const { piece, row, col } = selected;
 
-    
-    
-
-    // WHITE PAWN
-    if (piece === "wp") {
-        // One step
-        if (
-            targetRow === row - 1 &&
-            targetCol === col &&
-            boardState[targetRow][targetCol] === ""
-        ) {
-            boardState[targetRow][targetCol] = piece;
-            boardState[row][col] = "";
-            return true;
-        }
-
-        // Two steps (first move)
-        if (
-            row === 6 &&
-            targetRow === 4 &&
-            targetCol === col &&
-            boardState[5][col] === "" &&
-            boardState[4][col] === ""
-        ) {
-            boardState[4][col] = piece;
-            boardState[row][col] = "";
-            return true;
-        }
-            // Diagonal capture (white)
-        if (
-            targetRow === row - 1 &&
-            (targetCol === col - 1 || targetCol === col + 1) &&
-            boardState[targetRow][targetCol].startsWith("b")
-            ) {
-            boardState[targetRow][targetCol] = piece;
-            boardState[row][col] = "";
-
-            // PROMOTE WHITE PAWN
-            if (targetRow === 0) {
-                const promotedPiece = promotePawn("white");
-                if (promotedPiece) {
-                    boardState[targetRow][targetCol] = promotedPiece;
-                }
-            }
-            return true;
-        }
-
-    }
-    
-
-    // BLACK PAWN
-    if (piece === "bp") {
-        // One step
-        if (
-            targetRow === row + 1 &&
-            targetCol === col &&
-            boardState[targetRow][targetCol] === ""
-        ) {
-            boardState[targetRow][targetCol] = piece;
-            boardState[row][col] = "";
-
-            return true;
-        }
-
-        // Two steps (first move)
-        if (
-            row === 1 &&
-            targetRow === 3 &&
-            targetCol === col &&
-            boardState[2][col] === "" &&
-            boardState[3][col] === ""
-        ) {
-            boardState[3][col] = piece;
-            boardState[row][col] = "";
-            return true;
-        }
-        // Diagonal capture (black)
-        if (
-            targetRow === row + 1 &&
-            (targetCol === col - 1 || targetCol === col + 1) &&
-            boardState[targetRow][targetCol].startsWith("w")
-        ) {
-            boardState[targetRow][targetCol] = piece;
-            boardState[row][col] = "";
-
-            // PROMOTE BLACK PAWN
-            
-            if (targetRow === 7) {
-                const promotedPiece = promotePawn("black");
-                if (promotedPiece) {
-                    boardState[targetRow][targetCol] = promotedPiece;
-                }
-            }
-            return true;
-        }
-    }
-    // ROOK (WHITE & BLACK)
-    if (piece === "wr" || piece === "br") {
-
-        // Must move in straight line
-        if (row !== targetRow && col !== targetCol) {
-            return false;
-        }
-
-        const rowStep = targetRow > row ? 1 : targetRow < row ? -1 : 0;
-        const colStep = targetCol > col ? 1 : targetCol < col ? -1 : 0;
-
-        let currentRow = row + rowStep;
-        let currentCol = col + colStep;
-
-        // Check path blocking
-        while (currentRow !== targetRow || currentCol !== targetCol) {
-            if (boardState[currentRow][currentCol] !== "") {
-                return false;
-            }
-            currentRow += rowStep;
-            currentCol += colStep;
-        }
-
-        // Destination square
-        const targetPiece = boardState[targetRow][targetCol];
-
-        // Cannot capture own piece
-        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-            return false;
-        }
-
-        // Move or capture
-        boardState[targetRow][targetCol] = piece;
-        boardState[row][col] = "";
-        return true;
-    }
-    // KNIGHT (WHITE & BLACK)
-    if (piece === "wn" || piece === "bn") {
-
-        const rowDiff = Math.abs(targetRow - row);
-        const colDiff = Math.abs(targetCol - col);
-
-        // Knight L-shape
-        const isValidMove =
-            (rowDiff === 2 && colDiff === 1) ||
-            (rowDiff === 1 && colDiff === 2);
-
-        if (!isValidMove) {
-            return false;
-        }
-
-        const targetPiece = boardState[targetRow][targetCol];
-
-        // Cannot capture own piece
-        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-            return false;
-        }
-
-        // Move or capture
-        boardState[targetRow][targetCol] = piece;
-        boardState[row][col] = "";
-        return true;
-    }
-    // BISHOP (WHITE & BLACK)
-    if (piece === "wb" || piece === "bb") {
-
-        const rowDiff = targetRow - row;
-        const colDiff = targetCol - col;
-
-        // Must move diagonally
-        if (Math.abs(rowDiff) !== Math.abs(colDiff)) {
-            return false;
-        }
-
-        const rowStep = rowDiff > 0 ? 1 : -1;
-        const colStep = colDiff > 0 ? 1 : -1;
-
-        let currentRow = row + rowStep;
-        let currentCol = col + colStep;
-
-        // Check path blocking
-        while (currentRow !== targetRow && currentCol !== targetCol) {
-            if (boardState[currentRow][currentCol] !== "") {
-                return false;
-            }
-            currentRow += rowStep;
-            currentCol += colStep;
-        }
-
-        const targetPiece = boardState[targetRow][targetCol];
-
-        // Cannot capture own piece
-        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-            return false;
-        }
-
-        // Move or capture
-        boardState[targetRow][targetCol] = piece;
-        boardState[row][col] = "";
-        return true;
-    }
-    // QUEEN (WHITE & BLACK)
-    if (piece === "wq" || piece === "bq") {
-
-        const rowDiff = targetRow - row;
-        const colDiff = targetCol - col;
-
-        const isStraight = row === targetRow || col === targetCol;
-        const isDiagonal = Math.abs(rowDiff) === Math.abs(colDiff);
-
-        // Must be straight or diagonal
-        if (!isStraight && !isDiagonal) {
-            return false;
-        }
-
-        const rowStep = rowDiff === 0 ? 0 : rowDiff > 0 ? 1 : -1;
-        const colStep = colDiff === 0 ? 0 : colDiff > 0 ? 1 : -1;
-
-        let currentRow = row + rowStep;
-        let currentCol = col + colStep;
-
-        // Check path blocking
-        while (currentRow !== targetRow || currentCol !== targetCol) {
-            if (boardState[currentRow][currentCol] !== "") {
-                return false;
-            }
-            currentRow += rowStep;
-            currentCol += colStep;
-        }
-
-        const targetPiece = boardState[targetRow][targetCol];
-
-        // Cannot capture own piece
-        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-            return false;
-        }
-
-        // Move or capture
-        boardState[targetRow][targetCol] = piece;
-        boardState[row][col] = "";
-        return true;
-    }
-    // KING (WHITE & BLACK)
-    if (piece === "wk" || piece === "bk") {
-
-        const rowDiff = Math.abs(targetRow - row);
-        const colDiff = Math.abs(targetCol - col);
-
-        // King moves only one square
-        if (rowDiff > 1 || colDiff > 1) {
-            return false;
-        }
-
-        const targetPiece = boardState[targetRow][targetCol];
-
-        // Cannot capture own piece
-        if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-            return false;
-        }
-
-        // Move or capture
-        boardState[targetRow][targetCol] = piece;
-        boardState[row][col] = "";
-        return true;
+    // 1️⃣ Check if the move is legal
+    if (!isValidMove(piece, row, col, targetRow, targetCol)) {
+        return false; // move not allowed
     }
 
+    // 2️⃣ Perform the move
+    boardState[targetRow][targetCol] = piece;
+    boardState[row][col] = "";
 
-    return false;
+    // 3️⃣ Handle pawn promotion
+    if ((piece === "wp" && targetRow === 0) || (piece === "bp" && targetRow === 7)) {
+        showPromotionUI(piece.startsWith("w") ? "white" : "black", promoted => {
+            boardState[targetRow][targetCol] = promoted;
+            createBoard();
+        });
+    }
+
+    return true; // move completed successfully
 }
+
 
 function promotePawn(color) {
     let choice = prompt(
@@ -414,6 +446,34 @@ function showPromotion(row, col, color) {
 
     modal.classList.remove("hidden");
 }
+function showPromotionUI(color, callback) {
+    const overlay = document.createElement("div");
+    overlay.id = "promotion-overlay";
+
+    const container = document.createElement("div");
+    container.className = "promotion-container";
+
+    const pieces = color === "white"
+        ? ["wq", "wr", "wb", "wn"]
+        : ["bq", "br", "bb", "bn"];
+
+    pieces.forEach(p => {
+        const img = document.createElement("img");
+        img.src = `src/assets/pieces/${pieceMap[p]}`;
+        img.className = "promotion-piece";
+
+        img.onclick = () => {
+            document.body.removeChild(overlay);
+            callback(p);
+        };
+
+        container.appendChild(img);
+    });
+
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+}
+
 document.addEventListener("click", e => {
     if (!e.target.matches("#promotionModal img")) return;
 
@@ -427,43 +487,179 @@ document.addEventListener("click", e => {
     createBoard();
 });
 
-// function findKing(board, color) {
-//     for (let r = 0; r < 8; r++) {
-//         for (let c = 0; c < 8; c++) {
-//             const piece = board[r][c];
-//             if (piece && piece.type === "king" && piece.color === color) {
-//                 return { row: r, col: c };
-//             }
-//         }
-//     }
-//     return null;
-// }
+// =======================
+// CHECK DETECTION HELPERS
+// =======================
 
-// function isKingInCheck(board, color) {
-//     const kingPos = findKing(board, color);
-//     if (!kingPos) return false;
+// Find king position
+function findKing(color) {
+    const kingCode = color === "white" ? "wk" : "bk";
 
-//     const enemyColor = color === "white" ? "black" : "white";
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            if (boardState[r][c] === kingCode) {
+                return { row: r, col: c };
+            }
+        }
+    }
+    return null;
+}
 
-//     for (let r = 0; r < 8; r++) {
-//         for (let c = 0; c < 8; c++) {
-//             const piece = board[r][c];
-//             if (piece && piece.color === enemyColor) {
-//                 if (isValidMove(board, piece, r, c, kingPos.row, kingPos.col)) {
-//                     return true;
-//                 }
-//             }
-//         }
-//     }
-//     return false;
-// }
+// Check if a square is attacked by opponent
+function isSquareAttacked(targetRow, targetCol, byColor) {
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = boardState[r][c];
+            if (piece === "") continue;
 
-// function isMoveSafe(board, piece, fromRow, fromCol, toRow, toCol) {
-//     const tempBoard = board.map(row => row.slice());
+            if (
+                (byColor === "white" && piece.startsWith("w")) ||
+                (byColor === "black" && piece.startsWith("b"))
+            ) {
+                if (isValidMove(piece, r, c, targetRow, targetCol, true)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
 
-//     tempBoard[toRow][toCol] = piece;
-//     tempBoard[fromRow][fromCol] = null;
+// Check if king is in check
+function isKingInCheck(color) {
+    const kingPos = findKing(color);
+    if (!kingPos) return false;
 
-//     return !isKingInCheck(tempBoard, piece.color);
-// }
+    const enemyColor = color === "white" ? "black" : "white";
+    return isSquareAttacked(kingPos.row, kingPos.col, enemyColor);
+}
+
+// =======================
+// VALID MOVE FUNCTION
+// =======================
+function isValidMove(piece, row, col, targetRow, targetCol, skipCheck = false) {
+    if (row === targetRow && col === targetCol) return false; // cannot move to same square
+
+    const color = piece.startsWith("w") ? "white" : "black";
+    const target = boardState[targetRow][targetCol];
+
+    // Cannot capture own pieces
+    if (target !== "" && target.startsWith(piece[0])) return false;
+
+    const type = piece[1]; // p, n, b, r, q, k
+    let valid = false; // flag for valid move
+
+    switch (type) {
+        case "p": // pawn
+            const dir = color === "white" ? -1 : 1;
+            const startRow = color === "white" ? 6 : 1;
+
+            // forward move
+            if (col === targetCol && target === "") {
+                if (row + dir === targetRow) valid = true;
+                if (row === startRow && row + 2*dir === targetRow && boardState[row + dir][col] === "") valid = true;
+            }
+
+            // capture
+            if (Math.abs(col - targetCol) === 1 && row + dir === targetRow && target !== "" && !target.startsWith(piece[0])) valid = true;
+            break;
+
+        case "n": // knight
+            const drN = Math.abs(targetRow - row);
+            const dcN = Math.abs(targetCol - col);
+            if ((drN === 2 && dcN === 1) || (drN === 1 && dcN === 2)) valid = true;
+            break;
+
+        case "b": // bishop
+            if (Math.abs(targetRow - row) === Math.abs(targetCol - col)) {
+                const rStep = targetRow > row ? 1 : -1;
+                const cStep = targetCol > col ? 1 : -1;
+                let rB = row + rStep, cB = col + cStep;
+                valid = true;
+                while (rB !== targetRow && cB !== targetCol) {
+                    if (boardState[rB][cB] !== "") { valid = false; break; }
+                    rB += rStep; cB += cStep;
+                }
+            }
+            break;
+
+        case "r": // rook
+            if (row === targetRow || col === targetCol) {
+                valid = true;
+                if (row === targetRow) {
+                    const step = targetCol > col ? 1 : -1;
+                    for (let c = col + step; c !== targetCol; c += step) if (boardState[row][c] !== "") { valid = false; break; }
+                } else {
+                    const step = targetRow > row ? 1 : -1;
+                    for (let r = row + step; r !== targetRow; r += step) if (boardState[r][col] !== "") { valid = false; break; }
+                }
+            }
+            break;
+
+        case "q": // queen
+            const drQ = Math.abs(targetRow - row);
+            const dcQ = Math.abs(targetCol - col);
+            if (drQ === dcQ) { // diagonal
+                const rStep = targetRow > row ? 1 : -1;
+                const cStep = targetCol > col ? 1 : -1;
+                let r = row + rStep, c = col + cStep;
+                valid = true;
+                while (r !== targetRow && c !== targetCol) {
+                    if (boardState[r][c] !== "") { valid = false; break; }
+                    r += rStep; c += cStep;
+                }
+            } else if (row === targetRow || col === targetCol) { // straight
+                valid = true;
+                if (row === targetRow) {
+                    const step = targetCol > col ? 1 : -1;
+                    for (let c = col + step; c !== targetCol; c += step) if (boardState[row][c] !== "") { valid = false; break; }
+                } else {
+                    const step = targetRow > row ? 1 : -1;
+                    for (let r = row + step; r !== targetRow; r += step) if (boardState[r][col] !== "") { valid = false; break; }
+                }
+            }
+            break;
+
+        case "k": // king
+            const drK = Math.abs(targetRow - row);
+            const dcK = Math.abs(targetCol - col);
+            if (drK <= 1 && dcK <= 1) valid = true;
+            break;
+
+        default:
+            return false;
+    }
+
+    // Prevent moves that leave king in check
+    if (valid && !skipCheck) {
+        const backupFrom = boardState[row][col];
+        const backupTo = boardState[targetRow][targetCol];
+
+        boardState[targetRow][targetCol] = piece;
+        boardState[row][col] = "";
+
+        if (isKingInCheck(color)) valid = false;
+
+        boardState[row][col] = backupFrom;
+        boardState[targetRow][targetCol] = backupTo;
+    }
+
+    return valid;
+}
+
+// =======================
+// STATUS MESSAGE FUNCTION
+// =======================
+function showStatusMessage(message, duration = 1000) {
+    const status = document.getElementById("statusMessage");
+    status.textContent = message;
+    status.style.opacity = 1;
+
+    setTimeout(() => {
+        status.style.opacity = 0;
+    }, duration);
+}
+
+
+
 
