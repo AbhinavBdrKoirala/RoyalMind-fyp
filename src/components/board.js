@@ -98,7 +98,13 @@ function handleSquareClick(square) {
     const moved = tryMove(selectedPiece, row, col);
 
     if (moved) {
-        currentTurn = currentTurn === "white" ? "black" : "white";
+        const opponent = currentTurn === "white" ? "black" : "white";
+        currentTurn = opponent;
+
+        // CHECKMATE CHECK
+        if (isKingInCheck(opponent) && !hasAnyLegalMove(opponent)) {
+            showGameOver(currentTurn === "white" ? "Black" : "White");
+        }
     }else {
     showStatusMessage("Illegal move");
     }
@@ -658,6 +664,37 @@ function showStatusMessage(message, duration = 1000) {
     setTimeout(() => {
         status.style.opacity = 0;
     }, duration);
+}
+
+
+function hasAnyLegalMove(color) {
+    for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+            const piece = boardState[r][c];
+            if (piece === "") continue;
+
+            if (
+                (color === "white" && piece.startsWith("w")) ||
+                (color === "black" && piece.startsWith("b"))
+            ) {
+                for (let tr = 0; tr < 8; tr++) {
+                    for (let tc = 0; tc < 8; tc++) {
+                        if (isValidMove(piece, r, c, tr, tc)) {
+                            return true; // at least one legal move exists
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false; // no legal moves
+}
+function showGameOver(winnerColor) {
+    const overlay = document.getElementById("gameOverlay");
+    const text = document.getElementById("overlayText");
+
+    text.textContent = `Checkmate — ${winnerColor} wins`;
+    overlay.classList.remove("hidden");
 }
 
 

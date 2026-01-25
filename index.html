@@ -12,6 +12,13 @@
     <h1>RoyalMind Chess Game</h1>
 
     <div id="chessboard"></div>
+    <div id="gameOverlay" class="overlay hidden">
+        <div class="overlay-content">
+        <h1 id="overlayText"></h1>
+        <button onclick="location.reload()">Restart Game</button>
+        </div>
+    </div>
+
 
     <!-- IMPORTANT: module -->
     <script type="module" src="src/main.js"></script>

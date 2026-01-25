@@ -120,3 +120,37 @@ body {
     background-color: red !important; /* or use a red border if you prefer */
     opacity: 0.7; /* optional: makes it slightly transparent */
 }
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.overlay.hidden {
+    display: none;
+}
+
+.overlay-content {
+    background: #222;
+    padding: 30px 50px;
+    border-radius: 10px;
+    text-align: center;
+    color: white;
+}
+
+.overlay-content h1 {
+    margin-bottom: 20px;
+}
+
+.overlay-content button {
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+}
