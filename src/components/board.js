@@ -3,6 +3,8 @@ let selectedPiece = null;
 let currentTurn = "white";
 let promotionSquare = null;
 let promotionColor = null;
+let moveHistory = [];
+let moveNumber = 1;
 
 
 let boardState = [
@@ -70,7 +72,7 @@ function handleSquareClick(square) {
     const row = Number(square.dataset.row);
     const col = Number(square.dataset.col);
     const piece = boardState[row][col];
-
+    
     // STEP 1: No piece selected yet
     if (!selectedPiece) {
         if (
@@ -99,6 +101,7 @@ function handleSquareClick(square) {
 
     if (moved) {
         const opponent = currentTurn === "white" ? "black" : "white";
+        recordMove(piece, fromRow, fromCol, toRow, toCol);
         currentTurn = opponent;
 
         // CHECKMATE CHECK
@@ -697,6 +700,30 @@ function showGameOver(winnerColor) {
     overlay.classList.remove("hidden");
 }
 
+function toAlgebraic(row, col) {
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    return files[col] + (8 - row);
+}
+function recordMove(piece, fromRow, fromCol, toRow, toCol) {
+    const moveList = document.getElementById("moveList");
+
+    const from = toAlgebraic(fromRow, fromCol);
+    const to = toAlgebraic(toRow, toCol);
+
+    const pieceLetter = piece[1].toUpperCase() === "P" ? "" : piece[1].toUpperCase();
+    const notation = pieceLetter + to;
+
+    if (currentTurn === "white") {
+        const moveEntry = document.createElement("div");
+        moveEntry.textContent = `${moveNumber}. ${notation}`;
+        moveHistory.push(moveEntry);
+        moveList.appendChild(moveEntry);
+    } else {
+        const lastMove = moveHistory[moveHistory.length - 1];
+        lastMove.textContent += ` ${notation}`;
+        moveNumber++;
+    }
+}
 
 
 

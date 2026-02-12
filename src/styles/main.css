@@ -154,3 +154,31 @@ body {
     font-size: 16px;
     cursor: pointer;
 }
+
+.game-container {
+    display: flex;
+    gap: 30px;
+    align-items: flex-start;
+}
+
+.move-tracker {
+    width: 200px;
+    background: #1e1e1e;
+    color: white;
+    padding: 15px;
+    border-radius: 8px;
+    height: 480px;
+    overflow-y: auto;
+}
+
+.move-tracker h2 {
+    margin-bottom: 10px;
+    font-size: 18px;
+    border-bottom: 1px solid #444;
+    padding-bottom: 5px;
+}
+
+#moveList div {
+    margin-bottom: 5px;
+    font-size: 14px;
+}
