@@ -97,20 +97,28 @@ function handleSquareClick(square) {
     }
 
     // STEP 3: Try moving
+    
+    const fromRow = selectedPiece.row;
+    const fromCol = selectedPiece.col;
+    const movingPiece = selectedPiece.piece;
+
     const moved = tryMove(selectedPiece, row, col);
 
     if (moved) {
-        const opponent = currentTurn === "white" ? "black" : "white";
-        recordMove(piece, fromRow, fromCol, toRow, toCol);
-        currentTurn = opponent;
+        recordMove(movingPiece, fromRow, fromCol, row, col);
+
+        currentTurn = currentTurn === "white" ? "black" : "white";
+
+        const opponent = currentTurn;
 
         // CHECKMATE CHECK
         if (isKingInCheck(opponent) && !hasAnyLegalMove(opponent)) {
             showGameOver(currentTurn === "white" ? "Black" : "White");
         }
-    }else {
-    showStatusMessage("Illegal move");
+    } else {
+        showStatusMessage("Illegal move");
     }
+
 
     clearSelection();
     createBoard();
@@ -118,277 +126,7 @@ function handleSquareClick(square) {
 
 
 
-// function tryMove(selected, targetRow, targetCol) {
-//     const { piece, row, col } = selected;
 
-
-//     // WHITE PAWN
-//     if (piece === "wp") {
-
-//         // Forward one
-//         if (targetRow === row - 1 && targetCol === col && boardState[targetRow][targetCol] === "") {
-//             boardState[targetRow][targetCol] = piece;
-//             boardState[row][col] = "";
-
-//             if (targetRow === 0) {
-//                 showPromotionUI("white", promoted => {
-//                     boardState[targetRow][targetCol] = promoted;
-//                     createBoard();
-//                 });
-//             }
-//             return true;
-//         }
-
-//         // Forward two
-//         if (
-//             row === 6 &&
-//             targetRow === 4 &&
-//             targetCol === col &&
-//             boardState[5][col] === "" &&
-//             boardState[4][col] === ""
-//         ) {
-//             boardState[4][col] = piece;
-//             boardState[row][col] = "";
-//             return true;
-//         }
-
-//         // Capture
-//         if (
-//             targetRow === row - 1 &&
-//             (targetCol === col - 1 || targetCol === col + 1) &&
-//             boardState[targetRow][targetCol].startsWith("b")
-//         ) {
-//             boardState[targetRow][targetCol] = piece;
-//             boardState[row][col] = "";
-
-//             if (targetRow === 0) {
-//                 showPromotionUI("white", promoted => {
-//                     boardState[targetRow][targetCol] = promoted;
-//                     createBoard();
-//                 });
-//             }
-//             return true;
-//         }
-//     }
-
-    
-
-//     // BLACK PAWN
-//     if (piece === "bp") {
-
-//         if (targetRow === row + 1 && targetCol === col && boardState[targetRow][targetCol] === "") {
-//             boardState[targetRow][targetCol] = piece;
-//             boardState[row][col] = "";
-
-//             if (targetRow === 7) {
-//                 showPromotionUI("black", promoted => {
-//                     boardState[targetRow][targetCol] = promoted;
-//                     createBoard();
-//                 });
-//             }
-//             return true;
-//         }
-
-//         if (
-//             row === 1 &&
-//             targetRow === 3 &&
-//             targetCol === col &&
-//             boardState[2][col] === "" &&
-//             boardState[3][col] === ""
-//         ) {
-//             boardState[3][col] = piece;
-//             boardState[row][col] = "";
-//             return true;
-//         }
-
-//         if (
-//             targetRow === row + 1 &&
-//             (targetCol === col - 1 || targetCol === col + 1) &&
-//             boardState[targetRow][targetCol].startsWith("w")
-//         ) {
-//             boardState[targetRow][targetCol] = piece;
-//             boardState[row][col] = "";
-
-//             if (targetRow === 7) {
-//                 showPromotionUI("black", promoted => {
-//                     boardState[targetRow][targetCol] = promoted;
-//                     createBoard();
-//                 });
-//             }
-//             return true;
-//         }
-//     }
-
-
-//     // ROOK (WHITE & BLACK)
-//     if (piece === "wr" || piece === "br") {
-
-//         // Must move in straight line
-//         if (row !== targetRow && col !== targetCol) {
-//             return false;
-//         }
-
-//         const rowStep = targetRow > row ? 1 : targetRow < row ? -1 : 0;
-//         const colStep = targetCol > col ? 1 : targetCol < col ? -1 : 0;
-
-//         let currentRow = row + rowStep;
-//         let currentCol = col + colStep;
-
-//         // Check path blocking
-//         while (currentRow !== targetRow || currentCol !== targetCol) {
-//             if (boardState[currentRow][currentCol] !== "") {
-//                 return false;
-//             }
-//             currentRow += rowStep;
-//             currentCol += colStep;
-//         }
-
-//         // Destination square
-//         const targetPiece = boardState[targetRow][targetCol];
-
-//         // Cannot capture own piece
-//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-//             return false;
-//         }
-
-//         // Move or capture
-//         boardState[targetRow][targetCol] = piece;
-//         boardState[row][col] = "";
-//         return true;
-//     }
-//     // KNIGHT (WHITE & BLACK)
-//     if (piece === "wn" || piece === "bn") {
-
-//         const rowDiff = Math.abs(targetRow - row);
-//         const colDiff = Math.abs(targetCol - col);
-
-//         // Knight L-shape
-//         const isValidMove =
-//             (rowDiff === 2 && colDiff === 1) ||
-//             (rowDiff === 1 && colDiff === 2);
-
-//         if (!isValidMove) {
-//             return false;
-//         }
-
-//         const targetPiece = boardState[targetRow][targetCol];
-
-//         // Cannot capture own piece
-//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-//             return false;
-//         }
-
-//         // Move or capture
-//         boardState[targetRow][targetCol] = piece;
-//         boardState[row][col] = "";
-//         return true;
-//     }
-//     // BISHOP (WHITE & BLACK)
-//     if (piece === "wb" || piece === "bb") {
-
-//         const rowDiff = targetRow - row;
-//         const colDiff = targetCol - col;
-
-//         // Must move diagonally
-//         if (Math.abs(rowDiff) !== Math.abs(colDiff)) {
-//             return false;
-//         }
-
-//         const rowStep = rowDiff > 0 ? 1 : -1;
-//         const colStep = colDiff > 0 ? 1 : -1;
-
-//         let currentRow = row + rowStep;
-//         let currentCol = col + colStep;
-
-//         // Check path blocking
-//         while (currentRow !== targetRow && currentCol !== targetCol) {
-//             if (boardState[currentRow][currentCol] !== "") {
-//                 return false;
-//             }
-//             currentRow += rowStep;
-//             currentCol += colStep;
-//         }
-
-//         const targetPiece = boardState[targetRow][targetCol];
-
-//         // Cannot capture own piece
-//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-//             return false;
-//         }
-
-//         // Move or capture
-//         boardState[targetRow][targetCol] = piece;
-//         boardState[row][col] = "";
-//         return true;
-//     }
-//     // QUEEN (WHITE & BLACK)
-//     if (piece === "wq" || piece === "bq") {
-
-//         const rowDiff = targetRow - row;
-//         const colDiff = targetCol - col;
-
-//         const isStraight = row === targetRow || col === targetCol;
-//         const isDiagonal = Math.abs(rowDiff) === Math.abs(colDiff);
-
-//         // Must be straight or diagonal
-//         if (!isStraight && !isDiagonal) {
-//             return false;
-//         }
-
-//         const rowStep = rowDiff === 0 ? 0 : rowDiff > 0 ? 1 : -1;
-//         const colStep = colDiff === 0 ? 0 : colDiff > 0 ? 1 : -1;
-
-//         let currentRow = row + rowStep;
-//         let currentCol = col + colStep;
-
-//         // Check path blocking
-//         while (currentRow !== targetRow || currentCol !== targetCol) {
-//             if (boardState[currentRow][currentCol] !== "") {
-//                 return false;
-//             }
-//             currentRow += rowStep;
-//             currentCol += colStep;
-//         }
-
-//         const targetPiece = boardState[targetRow][targetCol];
-
-//         // Cannot capture own piece
-//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-//             return false;
-//         }
-
-//         // Move or capture
-//         boardState[targetRow][targetCol] = piece;
-//         boardState[row][col] = "";
-//         return true;
-//     }
-//     // KING (WHITE & BLACK)
-//     if (piece === "wk" || piece === "bk") {
-
-//         const rowDiff = Math.abs(targetRow - row);
-//         const colDiff = Math.abs(targetCol - col);
-
-//         // King moves only one square
-//         if (rowDiff > 1 || colDiff > 1) {
-//             return false;
-//         }
-
-//         const targetPiece = boardState[targetRow][targetCol];
-
-//         // Cannot capture own piece
-//         if (targetPiece !== "" && targetPiece[0] === piece[0]) {
-//             return false;
-//         }
-
-//         // Move or capture
-//         boardState[targetRow][targetCol] = piece;
-//         boardState[row][col] = "";
-//         return true;
-//     }
-
-
-//     return false;
-// }
 function tryMove(selected, targetRow, targetCol) {
     const { piece, row, col } = selected;
 
@@ -707,23 +445,47 @@ function toAlgebraic(row, col) {
 function recordMove(piece, fromRow, fromCol, toRow, toCol) {
     const moveList = document.getElementById("moveList");
 
-    const from = toAlgebraic(fromRow, fromCol);
     const to = toAlgebraic(toRow, toCol);
-
-    const pieceLetter = piece[1].toUpperCase() === "P" ? "" : piece[1].toUpperCase();
+    const pieceLetter = piece[1] === "p" ? "" : piece[1].toUpperCase();
     const notation = pieceLetter + to;
 
+    const pieceImg = document.createElement("img");
+    pieceImg.src = `src/assets/pieces/${pieceMap[piece]}`;
+
     if (currentTurn === "white") {
-        const moveEntry = document.createElement("div");
-        moveEntry.textContent = `${moveNumber}. ${notation}`;
-        moveHistory.push(moveEntry);
-        moveList.appendChild(moveEntry);
+        const rowDiv = document.createElement("div");
+        rowDiv.className = "move-row";
+
+        const numberDiv = document.createElement("div");
+        numberDiv.className = "move-number";
+        numberDiv.textContent = moveNumber + ".";
+
+        const whiteCell = document.createElement("div");
+        whiteCell.className = "move-cell";
+        whiteCell.appendChild(pieceImg);
+        whiteCell.append(notation);
+
+        const blackCell = document.createElement("div");
+        blackCell.className = "move-cell";
+
+        rowDiv.appendChild(numberDiv);
+        rowDiv.appendChild(whiteCell);
+        rowDiv.appendChild(blackCell);
+
+        moveList.appendChild(rowDiv);
+        moveHistory.push(rowDiv);
+
     } else {
-        const lastMove = moveHistory[moveHistory.length - 1];
-        lastMove.textContent += ` ${notation}`;
+        const lastRow = moveHistory[moveHistory.length - 1];
+        const blackCell = lastRow.children[2];
+
+        blackCell.appendChild(pieceImg);
+        blackCell.append(notation);
+
         moveNumber++;
     }
 }
+
 
 
 
