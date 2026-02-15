@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RoyalMind Chess Game</title>
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body>
+
+    <h1>RoyalMind Chess Game</h1>
+
+    <div class="game-wrapper">
+        <div class="game-container">
+
+            <!-- Chessboard  -->
+            <div id="chessboard"></div>
+
+            <!-- Move Tracker -->
+            <div id="moveTracker" class="move-tracker">
+                <h2>Moves</h2>
+                <div id="moveList" class="move-list"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Game Overlay -->
+    <div id="gameOverlay" class="overlay hidden">
+        <div class="overlay-content">
+            <h1 id="overlayText"></h1>
+            <button onclick="location.reload()">Restart Game</button>
+        </div>
+    </div>
+
+    <!-- Pawn Promotion Modal -->
+    <div id="promotionModal" class="promotion-modal hidden">
+        <div class="promotion-box">
+            <img data-piece="queen" />
+            <img data-piece="rook" />
+            <img data-piece="bishop" />
+            <img data-piece="knight" />
+        </div>
+    </div>
+
+    <div id="statusMessage" class="status-message"></div>
+
+    <script type="module" src="src/main.js"></script>
+
+</body>
+</html>
