@@ -436,7 +436,10 @@ function showGameOver(winnerColor) {
 
     text.textContent = `Checkmate — ${winnerColor} wins`;
     overlay.classList.remove("hidden");
+
+    saveGameResult(winnerColor);
 }
+
 
 function toAlgebraic(row, col) {
     const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -484,6 +487,23 @@ function recordMove(piece, fromRow, fromCol, toRow, toCol) {
 
         moveNumber++;
     }
+}
+function saveGameResult(winnerColor) {
+    const user = localStorage.getItem("royalmindUser");
+    if (!user) return;
+
+    const gameData = {
+        user: user,
+        date: new Date().toLocaleString(),
+        winner: winnerColor,
+        moves: document.getElementById("moveList").innerHTML
+    };
+
+    const existingGames = JSON.parse(localStorage.getItem("royalmindHistory")) || [];
+
+    existingGames.push(gameData);
+
+    localStorage.setItem("royalmindHistory", JSON.stringify(existingGames));
 }
 
 
