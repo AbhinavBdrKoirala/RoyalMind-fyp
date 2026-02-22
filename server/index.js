@@ -3,12 +3,17 @@ console.log("INDEX FILE LOADED");
 const authenticateToken = require('./middleware/authMiddleware');
 
 
-const cors = require('cors');
+
 require('dotenv').config();
+const cors = require('cors');
+const app = express();
 
 const authRoutes = require('./routes/auth');
 
-const app = express();
+const gameRoutes = require("./routes/gameRoutes");
+app.use("/api/games", gameRoutes);
+
+
 
 app.use(cors());
 app.use(express.json());
@@ -28,6 +33,10 @@ app.get('/', (req, res) => {
 
 
 
-app.listen(7000, () => {
-    console.log("Server running on port 7000");
+// app.listen(7000, () => {
+//     console.log("Server running on port 7000");
+// });
+const PORT = process.env.PORT || 7000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
