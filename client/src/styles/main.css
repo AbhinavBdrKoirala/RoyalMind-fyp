@@ -306,3 +306,298 @@ body {
     font-size: 16px;
     cursor: pointer;
 }
+
+/* ===============================
+   Home Page (Chess.com-like)
+================================ */
+
+body.home-page {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(122, 143, 106, 0.25), transparent 45%),
+        radial-gradient(circle at 85% 80%, rgba(44, 54, 40, 0.4), transparent 45%),
+        linear-gradient(180deg, #1f261d 0%, #171c15 100%);
+    color: #f1f5ec;
+    text-align: left;
+}
+
+.home-header {
+    width: min(1120px, 92%);
+    margin: 24px auto 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+}
+
+.brand-mark {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    background: linear-gradient(135deg, #d6a653, #8b6d3a);
+    box-shadow: 0 0 0 2px rgba(214, 166, 83, 0.2);
+}
+
+.brand-text {
+    font-size: 22px;
+}
+
+.home-nav {
+    display: flex;
+    gap: 22px;
+}
+
+.home-nav a {
+    color: #d4dccb;
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.home-nav a:hover {
+    color: #ffffff;
+}
+
+.home-main {
+    width: min(1120px, 92%);
+    margin: 28px auto 0;
+    display: grid;
+    grid-template-columns: 1.3fr 0.9fr;
+    gap: 34px;
+    align-items: stretch;
+}
+
+.hero-panel,
+.login-panel {
+    border-radius: 18px;
+    background: rgba(19, 25, 17, 0.84);
+    border: 1px solid rgba(220, 231, 208, 0.08);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+}
+
+.hero-panel {
+    padding: 42px;
+}
+
+.hero-tag {
+    margin: 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 12px;
+    color: #9fc18b;
+}
+
+.hero-panel h1 {
+    margin: 10px 0 12px;
+    font-size: clamp(30px, 5vw, 52px);
+    line-height: 1.06;
+}
+
+.hero-subtext {
+    margin: 0;
+    color: #c8d1bf;
+    max-width: 520px;
+    font-size: 17px;
+}
+
+.hero-actions {
+    margin-top: 28px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.primary-action,
+.secondary-action {
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.primary-action {
+    background: linear-gradient(180deg, #8fb36f, #739753);
+    color: #0f150d;
+}
+
+.secondary-action {
+    background: rgba(255, 255, 255, 0.08);
+    color: #f2f7ec;
+}
+
+.primary-action:hover,
+.secondary-action:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+}
+
+.board-preview {
+    margin-top: 36px;
+    width: min(440px, 100%);
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    background: #2f3d2a;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.preview-piece {
+    aspect-ratio: 1/1;
+    display: grid;
+    place-items: center;
+    font-size: clamp(22px, 2.7vw, 34px);
+    color: #f8f4ea;
+}
+
+.preview-piece:nth-child(odd) {
+    background: #3f5535;
+}
+
+.preview-piece:nth-child(even) {
+    background: #d8c3a1;
+    color: #253020;
+}
+
+.login-panel {
+    padding: 34px 30px;
+    align-self: center;
+}
+
+.login-panel h2 {
+    margin: 0;
+    font-size: 30px;
+}
+
+.login-panel p {
+    margin: 8px 0 24px;
+    color: #c2ccb9;
+}
+
+.login-panel input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #3f493b;
+    border-radius: 10px;
+    background: #212a1d;
+    color: #eef2e7;
+    font-size: 15px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+.password-field {
+    position: relative;
+    margin-bottom: 12px;
+}
+
+.password-field input {
+    margin-bottom: 0;
+    padding-right: 52px;
+}
+
+.password-toggle {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    border-radius: 50%;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    cursor: pointer;
+    color: #a9b7a1;
+    background: transparent;
+    display: grid;
+    place-items: center;
+}
+
+.password-toggle svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.password-toggle .eye-off-line {
+    display: none;
+}
+
+.password-toggle.is-visible .eye-off-line {
+    display: block;
+}
+
+.login-panel input::placeholder {
+    color: #91a089;
+}
+
+.login-panel button[type="submit"] {
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    color: #121a0f;
+    background: linear-gradient(180deg, #97bf73, #769f52);
+}
+
+.mode-toggle {
+    margin-top: 14px;
+    width: auto;
+    background: transparent;
+    border: 0;
+    color: #b5c4aa;
+    font-weight: 700;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.mode-toggle:hover {
+    color: #d9e6d0;
+}
+
+.home-footer-note {
+    width: min(1120px, 92%);
+    margin: 18px auto 28px;
+    color: #9ca793;
+    font-size: 13px;
+}
+
+@media (max-width: 900px) {
+    .home-header {
+        margin-top: 18px;
+    }
+
+    .home-nav {
+        display: none;
+    }
+
+    .home-main {
+        grid-template-columns: 1fr;
+        gap: 18px;
+    }
+
+    .hero-panel {
+        padding: 30px 24px;
+    }
+
+    .login-panel {
+        padding: 24px;
+    }
+}
