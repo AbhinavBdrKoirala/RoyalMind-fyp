@@ -46,6 +46,27 @@
             <h2 id="formTitle">Log In</h2>
             <p id="formSubtitle">Welcome back. Continue your chess journey.</p>
             <form id="loginForm">
+                <div id="registerFields" class="register-fields hidden">
+                    <div class="name-row">
+                        <input type="text" id="firstName" placeholder="First name" autocomplete="given-name" />
+                        <input type="text" id="lastName" placeholder="Last name" autocomplete="family-name" />
+                    </div>
+                    <input type="text" id="username" placeholder="Username" autocomplete="username" />
+                    <input type="tel" id="phone" placeholder="Phone number" autocomplete="tel" />
+                    <select id="country" aria-label="Country">
+                        <option value="">Select country</option>
+                        <option value="United States">United States</option>
+                        <option value="Canada">Canada</option>
+                        <option value="United Kingdom">United Kingdom</option>
+                        <option value="Australia">Australia</option>
+                        <option value="India">India</option>
+                        <option value="Germany">Germany</option>
+                        <option value="France">France</option>
+                        <option value="Brazil">Brazil</option>
+                        <option value="Japan">Japan</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
                 <input type="email" id="email" placeholder="Email" required />
                 <div class="password-field">
                     <input type="password" id="password" placeholder="Password" required />
@@ -57,6 +78,7 @@
                         </svg>
                     </button>
                 </div>
+                <input type="password" id="confirmPassword" class="register-fields hidden" placeholder="Confirm password" />
                 <button type="submit" id="submitButton">Log In</button>
             </form>
             <button type="button" id="modeToggle" class="mode-toggle">No account? Register</button>

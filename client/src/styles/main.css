@@ -495,6 +495,28 @@ body.home-page {
     margin-bottom: 12px;
 }
 
+.login-panel select {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid #3f493b;
+    border-radius: 10px;
+    background: #212a1d;
+    color: #eef2e7;
+    font-size: 15px;
+    padding: 12px 14px;
+    margin-bottom: 12px;
+}
+
+.name-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.register-fields {
+    margin-bottom: 0;
+}
+
 .password-field {
     position: relative;
     margin-bottom: 12px;
@@ -599,5 +621,10 @@ body.home-page {
 
     .login-panel {
         padding: 24px;
+    }
+
+    .name-row {
+        grid-template-columns: 1fr;
+        gap: 0;
     }
 }
