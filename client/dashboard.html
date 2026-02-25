@@ -2,22 +2,47 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RoyalMind - Dashboard</title>
     <link rel="stylesheet" href="src/styles/main.css">
 </head>
-<body>
-
-    <div class="dashboard">
-        <h1>Welcome to RoyalMind</h1>
-
-        <div class="menu">
-            <button onclick="goTo('game.html')">Play Game</button>
-            <button onclick="goTo('settings.html')">Settings</button>
-            <button onclick="goTo('history.html')">Game History</button>
-            <button onclick="goTo('subscription.html')">Subscription</button>
-            <button onclick="logout()">Logout</button>
-        </div>
+<body class="dashboard-page">
+    <div class="dashboard-bg" aria-hidden="true">
+        <div class="bg-grid"></div>
+        <span class="glow-orb orb-a"></span>
+        <span class="glow-orb orb-b"></span>
+        <span class="glow-orb orb-c"></span>
+        <span class="floating-piece piece-1">&#9816;</span>
+        <span class="floating-piece piece-2">&#9815;</span>
+        <span class="floating-piece piece-3">&#9814;</span>
+        <span class="floating-piece piece-4">&#9817;</span>
+        <span class="falling-king">&#9818;</span>
     </div>
+
+    <main class="dashboard-shell centered-layout">
+        <nav class="dashboard-menu centered-menu" aria-label="Dashboard navigation">
+            <button onclick="goTo('game.html')">
+                <span class="menu-item-icon" aria-hidden="true">&#9822;</span>
+                <span>Play Game</span>
+            </button>
+            <button onclick="goTo('settings.html')">
+                <span class="menu-item-icon" aria-hidden="true">&#9881;</span>
+                <span>Settings</span>
+            </button>
+            <button onclick="goTo('history.html')">
+                <span class="menu-item-icon" aria-hidden="true">&#9783;</span>
+                <span>Game History</span>
+            </button>
+            <button onclick="goTo('subscription.html')">
+                <span class="menu-item-icon" aria-hidden="true">&#9733;</span>
+                <span>Subscription</span>
+            </button>
+            <button class="logout-btn" onclick="logout()">
+                <span class="menu-item-icon" aria-hidden="true">&#10006;</span>
+                <span>Logout</span>
+            </button>
+        </nav>
+    </main>
 
     <script src="src/dashboard.js"></script>
 </body>

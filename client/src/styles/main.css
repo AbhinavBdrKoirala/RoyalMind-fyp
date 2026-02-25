@@ -329,6 +329,7 @@ body.home-page {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    animation: fadeSlideUp 0.55s ease both;
 }
 
 .brand {
@@ -340,11 +341,17 @@ body.home-page {
 }
 
 .brand-mark {
-    width: 16px;
-    height: 16px;
-    border-radius: 3px;
-    background: linear-gradient(135deg, #d6a653, #8b6d3a);
-    box-shadow: 0 0 0 2px rgba(214, 166, 83, 0.2);
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 18px;
+    line-height: 1;
+    color: #f4d8a8;
+    background: linear-gradient(135deg, rgba(214, 166, 83, 0.2), rgba(139, 109, 58, 0.2));
+    border: 1px solid rgba(214, 166, 83, 0.35);
+    box-shadow: 0 0 0 2px rgba(214, 166, 83, 0.1);
 }
 
 .brand-text {
@@ -360,10 +367,28 @@ body.home-page {
     color: #d4dccb;
     text-decoration: none;
     font-weight: 600;
+    position: relative;
+    transition: color 0.2s ease;
+}
+
+.home-nav a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -5px;
+    width: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: #96be72;
+    transition: width 0.22s ease;
 }
 
 .home-nav a:hover {
     color: #ffffff;
+}
+
+.home-nav a:hover::after {
+    width: 100%;
 }
 
 .home-main {
@@ -381,10 +406,12 @@ body.home-page {
     background: rgba(19, 25, 17, 0.84);
     border: 1px solid rgba(220, 231, 208, 0.08);
     box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
 }
 
 .hero-panel {
     padding: 42px;
+    animation: fadeSlideUp 0.62s ease both;
 }
 
 .hero-tag {
@@ -441,6 +468,7 @@ body.home-page {
 }
 
 .board-preview {
+    position: relative;
     margin-top: 36px;
     width: min(440px, 100%);
     border-radius: 12px;
@@ -449,6 +477,17 @@ body.home-page {
     grid-template-columns: repeat(8, 1fr);
     background: #2f3d2a;
     border: 1px solid rgba(255, 255, 255, 0.07);
+    animation: fadeSlideUp 0.78s ease both;
+}
+
+.board-preview::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 20%, rgba(255, 255, 255, 0.18) 50%, transparent 80%);
+    transform: translateX(-120%);
+    animation: boardShimmer 4.5s ease-in-out infinite 1.5s;
+    pointer-events: none;
 }
 
 .preview-piece {
@@ -471,6 +510,7 @@ body.home-page {
 .login-panel {
     padding: 34px 30px;
     align-self: center;
+    animation: fadeSlideUp 0.7s ease both;
 }
 
 .login-panel h2 {
@@ -493,6 +533,7 @@ body.home-page {
     font-size: 15px;
     padding: 12px 14px;
     margin-bottom: 12px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
 }
 
 .login-panel select {
@@ -505,6 +546,14 @@ body.home-page {
     font-size: 15px;
     padding: 12px 14px;
     margin-bottom: 12px;
+    transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.login-panel input:focus,
+.login-panel select:focus {
+    outline: none;
+    border-color: #96be72;
+    box-shadow: 0 0 0 3px rgba(150, 190, 114, 0.2);
 }
 
 .name-row {
@@ -542,6 +591,12 @@ body.home-page {
     background: transparent;
     display: grid;
     place-items: center;
+    transition: background 0.16s ease, color 0.16s ease;
+}
+
+.password-toggle:hover {
+    background: rgba(151, 191, 115, 0.15);
+    color: #d8e3cf;
 }
 
 .password-toggle svg {
@@ -576,6 +631,12 @@ body.home-page {
     cursor: pointer;
     color: #121a0f;
     background: linear-gradient(180deg, #97bf73, #769f52);
+    transition: transform 0.16s ease, filter 0.16s ease;
+}
+
+.login-panel button[type="submit"]:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
 }
 
 .mode-toggle {
@@ -592,6 +653,16 @@ body.home-page {
 
 .mode-toggle:hover {
     color: #d9e6d0;
+}
+
+.primary-action:focus-visible,
+.secondary-action:focus-visible,
+.mode-toggle:focus-visible,
+.login-panel button[type="submit"]:focus-visible,
+.dashboard-menu button:focus-visible,
+.password-toggle:focus-visible {
+    outline: 2px solid #97bf73;
+    outline-offset: 2px;
 }
 
 .home-footer-note {
@@ -626,5 +697,271 @@ body.home-page {
     .name-row {
         grid-template-columns: 1fr;
         gap: 0;
+    }
+}
+
+/* ===============================
+   Dashboard Theme
+================================ */
+
+body.dashboard-page {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    background:
+        radial-gradient(circle at 15% 20%, rgba(111, 154, 83, 0.28), transparent 48%),
+        radial-gradient(circle at 85% 80%, rgba(38, 54, 45, 0.55), transparent 50%),
+        linear-gradient(180deg, #101812 0%, #0f1310 100%);
+    color: #f1f5ec;
+    overflow: hidden;
+}
+
+.dashboard-bg {
+    position: fixed;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+    z-index: 0;
+}
+
+.bg-grid {
+    position: absolute;
+    inset: -20%;
+    background-image:
+        linear-gradient(rgba(151, 191, 115, 0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(151, 191, 115, 0.08) 1px, transparent 1px);
+    background-size: 64px 64px;
+    transform: perspective(700px) rotateX(62deg) translateY(180px) scale(1.15);
+    opacity: 0.26;
+}
+
+.glow-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(16px);
+    animation: driftOrb 13s ease-in-out infinite alternate;
+}
+
+.orb-a {
+    width: 240px;
+    height: 240px;
+    left: 8%;
+    top: 14%;
+    background: rgba(128, 189, 84, 0.32);
+}
+
+.orb-b {
+    width: 300px;
+    height: 300px;
+    right: 10%;
+    top: 56%;
+    background: rgba(77, 124, 148, 0.26);
+    animation-delay: 1.5s;
+}
+
+.orb-c {
+    width: 190px;
+    height: 190px;
+    left: 65%;
+    top: 18%;
+    background: rgba(220, 172, 95, 0.18);
+    animation-delay: 3.2s;
+}
+
+.floating-piece {
+    position: absolute;
+    font-size: clamp(24px, 3vw, 40px);
+    color: rgba(234, 242, 227, 0.22);
+    text-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+    animation: floatPiece 9s ease-in-out infinite;
+}
+
+.piece-1 {
+    left: 12%;
+    bottom: 26%;
+}
+
+.piece-2 {
+    right: 14%;
+    bottom: 22%;
+    animation-delay: 1.3s;
+}
+
+.piece-3 {
+    left: 70%;
+    top: 16%;
+    animation-delay: 2.7s;
+}
+
+.piece-4 {
+    left: 24%;
+    top: 32%;
+    animation-delay: 4.1s;
+}
+
+.falling-king {
+    position: absolute;
+    left: 76%;
+    top: -12%;
+    font-size: clamp(46px, 6vw, 86px);
+    color: rgba(243, 205, 136, 0.42);
+    text-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    transform-origin: center;
+    animation: kingFall 7s cubic-bezier(0.42, 0.04, 0.26, 0.99) infinite;
+}
+
+.dashboard-shell {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    box-sizing: border-box;
+    position: relative;
+    z-index: 1;
+}
+
+.dashboard-menu {
+    width: min(480px, 94vw);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+    border-radius: 18px;
+    background: rgba(19, 25, 17, 0.84);
+    border: 1px solid rgba(220, 231, 208, 0.08);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+    animation: fadeSlideUp 0.7s ease both;
+}
+
+.dashboard-menu button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    border: 0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    color: #e6eee0;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.04));
+    border: 1px solid rgba(220, 231, 208, 0.14);
+    transition: transform 0.16s ease, filter 0.16s ease, background 0.16s ease, border-color 0.16s ease;
+    text-align: left;
+}
+
+.menu-item-icon {
+    width: 28px;
+    min-width: 28px;
+    text-align: center;
+    font-size: 18px;
+    opacity: 0.95;
+}
+
+.dashboard-menu button:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.08);
+    background: linear-gradient(180deg, rgba(151, 191, 115, 0.24), rgba(151, 191, 115, 0.12));
+    border-color: rgba(151, 191, 115, 0.45);
+}
+
+.dashboard-menu button:nth-child(1) { animation: fadeSlideUp 0.55s ease both 0.08s; }
+.dashboard-menu button:nth-child(2) { animation: fadeSlideUp 0.55s ease both 0.12s; }
+.dashboard-menu button:nth-child(3) { animation: fadeSlideUp 0.55s ease both 0.16s; }
+.dashboard-menu button:nth-child(4) { animation: fadeSlideUp 0.55s ease both 0.2s; }
+.dashboard-menu button:nth-child(5) { animation: fadeSlideUp 0.55s ease both 0.24s; }
+
+.dashboard-menu .logout-btn {
+    margin-top: 6px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
+    color: #f2f7ec;
+    border: 1px solid rgba(220, 231, 208, 0.2);
+}
+
+@media (max-width: 900px) {
+    .dashboard-header {
+        margin-top: 18px;
+    }
+
+    .dashboard-shell {
+        padding: 16px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
+@keyframes fadeSlideUp {
+    from {
+        opacity: 0;
+        transform: translateY(14px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes boardShimmer {
+    0%,
+    62% {
+        transform: translateX(-120%);
+    }
+    100% {
+        transform: translateX(120%);
+    }
+}
+
+@keyframes driftOrb {
+    0% {
+        transform: translateY(0) scale(1);
+    }
+    100% {
+        transform: translateY(-24px) scale(1.08);
+    }
+}
+
+@keyframes floatPiece {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0deg);
+        opacity: 0.22;
+    }
+    50% {
+        transform: translateY(-16px) rotate(-6deg);
+        opacity: 0.34;
+    }
+}
+
+@keyframes kingFall {
+    0% {
+        transform: translate3d(0, -12vh, 0) rotate(0deg);
+        opacity: 0;
+    }
+    12% {
+        opacity: 0.55;
+    }
+    68% {
+        transform: translate3d(-6vw, 72vh, 0) rotate(-58deg);
+        opacity: 0.62;
+    }
+    78% {
+        transform: translate3d(-7.2vw, 76vh, 0) rotate(-72deg);
+        opacity: 0.48;
+    }
+    100% {
+        transform: translate3d(-10vw, 104vh, 0) rotate(-96deg);
+        opacity: 0;
     }
 }
