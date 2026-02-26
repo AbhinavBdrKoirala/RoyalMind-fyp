@@ -5,6 +5,8 @@ let promotionSquare = null;
 let promotionColor = null;
 let moveHistory = [];
 let moveNumber = 1;
+let capturedByWhite = [];
+let capturedByBlack = [];
 
 
 let boardState = [
@@ -36,6 +38,7 @@ const pieceMap = {
 export function createBoard() {
     const boardElement = document.getElementById("chessboard");
     boardElement.innerHTML = "";
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
@@ -48,6 +51,20 @@ export function createBoard() {
 
             const isLight = (row + col) % 2 === 0;
             square.classList.add(isLight ? "light" : "dark");
+
+            if (row === 7) {
+                const fileLabel = document.createElement("span");
+                fileLabel.className = "square-label file-label";
+                fileLabel.textContent = files[col];
+                square.appendChild(fileLabel);
+            }
+
+            if (col === 0) {
+                const rankLabel = document.createElement("span");
+                rankLabel.className = "square-label rank-label";
+                rankLabel.textContent = String(8 - row);
+                square.appendChild(rankLabel);
+            }
 
             square.addEventListener("click", () => handleSquareClick(square));
 
@@ -66,6 +83,15 @@ export function createBoard() {
             boardElement.appendChild(square);
         }
     }
+
+    updateTurnLabel();
+    renderCapturedPieces();
+}
+
+function updateTurnLabel() {
+    const turnLabel = document.getElementById("currentTurnLabel");
+    if (!turnLabel) return;
+    turnLabel.textContent = currentTurn === "white" ? "White to move" : "Black to move";
 }
 
 function handleSquareClick(square) {
@@ -83,6 +109,7 @@ function handleSquareClick(square) {
             selectedPiece = { piece, row, col };
             selectedSquare = square;
             square.classList.add("selected");
+            showLegalMoveHints(piece, row, col);
         }
         return;
     }
@@ -93,6 +120,7 @@ function handleSquareClick(square) {
         selectedPiece = { piece, row, col };
         selectedSquare = square;
         square.classList.add("selected");
+        showLegalMoveHints(piece, row, col);
         return;
     }
 
@@ -129,6 +157,7 @@ function handleSquareClick(square) {
 
 function tryMove(selected, targetRow, targetCol) {
     const { piece, row, col } = selected;
+    const capturedPiece = boardState[targetRow][targetCol];
 
     // 1️⃣ Check if the move is legal
     if (!isValidMove(piece, row, col, targetRow, targetCol)) {
@@ -138,6 +167,14 @@ function tryMove(selected, targetRow, targetCol) {
     // 2️⃣ Perform the move
     boardState[targetRow][targetCol] = piece;
     boardState[row][col] = "";
+
+    if (capturedPiece !== "") {
+        if (piece.startsWith("w")) {
+            capturedByWhite.push(capturedPiece);
+        } else {
+            capturedByBlack.push(capturedPiece);
+        }
+    }
 
     // 3️⃣ Handle pawn promotion
     if ((piece === "wp" && targetRow === 0) || (piece === "bp" && targetRow === 7)) {
@@ -175,6 +212,79 @@ function clearSelection() {
     }
     selectedSquare = null;
     selectedPiece = null;
+    clearLegalMoveHints();
+}
+
+function getLegalMoves(piece, row, col) {
+    const legalMoves = [];
+
+    for (let targetRow = 0; targetRow < 8; targetRow++) {
+        for (let targetCol = 0; targetCol < 8; targetCol++) {
+            if (isValidMove(piece, row, col, targetRow, targetCol)) {
+                legalMoves.push({ row: targetRow, col: targetCol });
+            }
+        }
+    }
+
+    return legalMoves;
+}
+
+function showLegalMoveHints(piece, row, col) {
+    clearLegalMoveHints();
+
+    const legalMoves = getLegalMoves(piece, row, col);
+
+    legalMoves.forEach(({ row: targetRow, col: targetCol }) => {
+        const targetSquare = document.querySelector(
+            `.square[data-row="${targetRow}"][data-col="${targetCol}"]`
+        );
+
+        if (!targetSquare) return;
+
+        targetSquare.classList.add("legal-move-square");
+
+        const hint = document.createElement("div");
+        hint.className = "legal-move-hint";
+
+        const hintImg = document.createElement("img");
+        hintImg.className = "legal-move-piece";
+        hintImg.src = `src/assets/pieces/${pieceMap[piece]}`;
+        hintImg.alt = "";
+
+        hint.appendChild(hintImg);
+        targetSquare.appendChild(hint);
+    });
+}
+
+function clearLegalMoveHints() {
+    document.querySelectorAll(".legal-move-hint").forEach(node => node.remove());
+    document.querySelectorAll(".legal-move-square").forEach(node => {
+        node.classList.remove("legal-move-square");
+    });
+}
+
+function renderCapturedPieces() {
+    const whiteContainer = document.getElementById("capturedByWhite");
+    const blackContainer = document.getElementById("capturedByBlack");
+
+    if (!whiteContainer || !blackContainer) return;
+
+    whiteContainer.innerHTML = "";
+    blackContainer.innerHTML = "";
+
+    capturedByWhite.forEach(piece => {
+        const img = document.createElement("img");
+        img.src = `src/assets/pieces/${pieceMap[piece]}`;
+        img.alt = piece;
+        whiteContainer.appendChild(img);
+    });
+
+    capturedByBlack.forEach(piece => {
+        const img = document.createElement("img");
+        img.src = `src/assets/pieces/${pieceMap[piece]}`;
+        img.alt = piece;
+        blackContainer.appendChild(img);
+    });
 }
 function showPromotion(row, col, color) {
     promotionSquare = { row, col };

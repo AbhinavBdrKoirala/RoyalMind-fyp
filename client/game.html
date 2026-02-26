@@ -2,27 +2,44 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RoyalMind Chess Game</title>
     <link rel="stylesheet" href="src/styles/main.css">
 </head>
-<body>
+<body class="game-page">
 
-    <h1>RoyalMind Chess Game</h1>
-
-    <div class="game-wrapper">
-        <div class="game-container">
-
-            <!-- Chessboard  -->
-            <div id="chessboard"></div>
-
-            <!-- Move Tracker -->
-            <div id="moveTracker" class="move-tracker">
-                <h2>Moves</h2>
-                <div id="moveList" class="move-list"></div>
-            </div>
-
+    <header class="game-header">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">&#9818;</span>
+            <span class="brand-text">RoyalMind</span>
         </div>
-    </div>
+        <a class="game-back-link" href="dashboard.html">Back to Dashboard</a>
+    </header>
+
+    <main class="game-shell">
+        <section class="board-panel">
+            <div class="board-panel-head">
+                <h1>Live Match</h1>
+                <p id="currentTurnLabel">White to move</p>
+            </div>
+            <div class="captured-strip">
+                <p>Captured by White</p>
+                <div id="capturedByWhite" class="captured-pieces"></div>
+            </div>
+            <div id="chessboard"></div>
+            <div class="captured-strip">
+                <p>Captured by Black</p>
+                <div id="capturedByBlack" class="captured-pieces"></div>
+            </div>
+        </section>
+
+        <aside id="moveTracker" class="move-tracker game-move-panel">
+            <h2>Moves</h2>
+            <div id="moveList" class="move-list"></div>
+        </aside>
+    </main>
+
+    <div id="statusMessage" class="status-message"></div>
 
     <!-- Game Overlay -->
     <div id="gameOverlay" class="overlay hidden">
@@ -41,8 +58,6 @@
             <img data-piece="knight" />
         </div>
     </div>
-
-    <div id="statusMessage" class="status-message"></div>
 
     <script type="module" src="src/main.js"></script>
 
