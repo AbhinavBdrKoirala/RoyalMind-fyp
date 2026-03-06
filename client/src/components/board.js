@@ -7,9 +7,24 @@ let moveHistory = [];
 let moveNumber = 1;
 let capturedByWhite = [];
 let capturedByBlack = [];
+let timerInterval = null;
+let whiteTimeLeft = 600;
+let blackTimeLeft = 600;
+let timerRunning = false;
+let uiInitialized = false;
+
+const TIME_PRESETS = {
+    "bullet-1": 60,
+    "blitz-3": 180,
+    "blitz-5": 300,
+    "rapid-10": 600,
+    "rapid-15": 900,
+    "classical-30": 1800,
+    "classical-60": 3600
+};
 
 
-let boardState = [
+const initialBoardState = [
     ["br","bn","bb","bq","bk","bb","bn","br"],
     ["bp","bp","bp","bp","bp","bp","bp","bp"],
     ["","","","","","","",""],
@@ -19,6 +34,7 @@ let boardState = [
     ["wp","wp","wp","wp","wp","wp","wp","wp"],
     ["wr","wn","wb","wq","wk","wb","wn","wr"]
 ];
+let boardState = initialBoardState.map(row => [...row]);
 
 const pieceMap = {
     wp: "white_pawn.png",
@@ -36,9 +52,14 @@ const pieceMap = {
 };
 
 export function createBoard() {
+    initializeGameUi();
+
     const boardElement = document.getElementById("chessboard");
     boardElement.innerHTML = "";
-    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+
+    const files = currentTurn === "white"
+        ? ["a", "b", "c", "d", "e", "f", "g", "h"]
+        : ["h", "g", "f", "e", "d", "c", "b", "a"];
 
     for (let row = 0; row < 8; row++) {
         for (let col = 0; col < 8; col++) {
@@ -62,7 +83,9 @@ export function createBoard() {
             if (col === 0) {
                 const rankLabel = document.createElement("span");
                 rankLabel.className = "square-label rank-label";
-                rankLabel.textContent = String(8 - row);
+                rankLabel.textContent = currentTurn === "white"
+                    ? String(8 - row)
+                    : String(row + 1);
                 square.appendChild(rankLabel);
             }
 
@@ -86,6 +109,151 @@ export function createBoard() {
 
     updateTurnLabel();
     renderCapturedPieces();
+    updateTimerDisplay();
+}
+
+function initializeGameUi() {
+    if (uiInitialized) return;
+
+    const timeControlSelect = document.getElementById("timeControlSelect");
+    const customMinutes = document.getElementById("customMinutes");
+    const setTimeControlBtn = document.getElementById("setTimeControlBtn");
+
+    if (timeControlSelect && customMinutes) {
+        const toggleCustomInput = () => {
+            const isCustom = timeControlSelect.value === "custom";
+            customMinutes.style.display = isCustom ? "block" : "none";
+        };
+
+        timeControlSelect.addEventListener("change", toggleCustomInput);
+        toggleCustomInput();
+    }
+
+    if (setTimeControlBtn) {
+        setTimeControlBtn.addEventListener("click", () => {
+            const newTimeInSeconds = getTimeFromUi();
+            if (!newTimeInSeconds) return;
+            const hasGameProgress = moveHistory.length > 0 || capturedByWhite.length > 0 || capturedByBlack.length > 0;
+
+            if (hasGameProgress) {
+                const confirmReset = confirm(
+                    "Changing time control will restart the current game. The current game will be treated as a loss. Continue?"
+                );
+                if (!confirmReset) return;
+            }
+
+            resetGameState(newTimeInSeconds);
+        });
+    }
+
+    updateTimerDisplay();
+    uiInitialized = true;
+}
+
+function getTimeFromUi() {
+    const timeControlSelect = document.getElementById("timeControlSelect");
+    const customMinutes = document.getElementById("customMinutes");
+
+    if (!timeControlSelect) return 600;
+
+    if (timeControlSelect.value === "custom") {
+        const minutes = Number(customMinutes ? customMinutes.value : 0);
+        if (!Number.isFinite(minutes) || minutes < 1 || minutes > 180) {
+            alert("Custom time must be between 1 and 180 minutes.");
+            return null;
+        }
+        return Math.floor(minutes * 60);
+    }
+
+    return TIME_PRESETS[timeControlSelect.value] || 600;
+}
+
+function formatTime(totalSeconds) {
+    const safeSeconds = Math.max(0, totalSeconds);
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function updateTimerDisplay() {
+    const whiteTimer = document.getElementById("whiteTimer");
+    const blackTimer = document.getElementById("blackTimer");
+    const whiteClockBox = document.getElementById("whiteClockBox");
+    const blackClockBox = document.getElementById("blackClockBox");
+
+    if (whiteTimer) whiteTimer.textContent = formatTime(whiteTimeLeft);
+    if (blackTimer) blackTimer.textContent = formatTime(blackTimeLeft);
+
+    if (whiteClockBox && blackClockBox) {
+        whiteClockBox.classList.toggle("active", currentTurn === "white");
+        blackClockBox.classList.toggle("active", currentTurn === "black");
+    }
+}
+
+function startTimer() {
+    if (timerRunning) return;
+
+    timerInterval = setInterval(() => {
+        if (currentTurn === "white") {
+            whiteTimeLeft -= 1;
+            if (whiteTimeLeft <= 0) {
+                whiteTimeLeft = 0;
+                updateTimerDisplay();
+                stopTimer();
+                showStatusMessage("White ran out of time", 1600);
+                showGameOver("Black", "Time out");
+                return;
+            }
+        } else {
+            blackTimeLeft -= 1;
+            if (blackTimeLeft <= 0) {
+                blackTimeLeft = 0;
+                updateTimerDisplay();
+                stopTimer();
+                showStatusMessage("Black ran out of time", 1600);
+                showGameOver("White", "Time out");
+                return;
+            }
+        }
+
+        updateTimerDisplay();
+    }, 1000);
+
+    timerRunning = true;
+}
+
+function stopTimer() {
+    if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+    }
+    timerRunning = false;
+}
+
+function resetGameState(timeInSeconds = 600) {
+    stopTimer();
+
+    currentTurn = "white";
+    selectedSquare = null;
+    selectedPiece = null;
+    promotionSquare = null;
+    promotionColor = null;
+    moveHistory = [];
+    moveNumber = 1;
+    capturedByWhite = [];
+    capturedByBlack = [];
+    boardState = initialBoardState.map(row => [...row]);
+    whiteTimeLeft = timeInSeconds;
+    blackTimeLeft = timeInSeconds;
+
+    const moveList = document.getElementById("moveList");
+    if (moveList) moveList.innerHTML = "";
+
+    const overlay = document.getElementById("gameOverlay");
+    if (overlay) overlay.classList.add("hidden");
+
+    updateTimerDisplay();
+    createBoard();
 }
 
 function updateTurnLabel() {
@@ -136,6 +304,10 @@ function handleSquareClick(square) {
         recordMove(movingPiece, fromRow, fromCol, row, col);
 
         currentTurn = currentTurn === "white" ? "black" : "white";
+        if (!timerRunning) {
+            startTimer();
+        }
+        updateTimerDisplay();
 
         const opponent = currentTurn;
 
@@ -285,6 +457,20 @@ function renderCapturedPieces() {
         img.alt = piece;
         blackContainer.appendChild(img);
     });
+
+    if (capturedByWhite.length === 0) {
+        const empty = document.createElement("span");
+        empty.className = "captured-empty";
+        empty.textContent = "No captures yet";
+        whiteContainer.appendChild(empty);
+    }
+
+    if (capturedByBlack.length === 0) {
+        const empty = document.createElement("span");
+        empty.className = "captured-empty";
+        empty.textContent = "No captures yet";
+        blackContainer.appendChild(empty);
+    }
 }
 function showPromotion(row, col, color) {
     promotionSquare = { row, col };
@@ -540,12 +726,13 @@ function hasAnyLegalMove(color) {
     }
     return false; // no legal moves
 }
-function showGameOver(winnerColor) {
+function showGameOver(winnerColor, reason = "Checkmate") {
     const overlay = document.getElementById("gameOverlay");
     const text = document.getElementById("overlayText");
 
-    text.textContent = `Checkmate — ${winnerColor} wins`;
+    text.textContent = `${reason} - ${winnerColor} wins`;
     overlay.classList.remove("hidden");
+    stopTimer();
 
     saveGameResult(winnerColor);
 }

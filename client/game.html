@@ -26,7 +26,15 @@
                 <p>Captured by White</p>
                 <div id="capturedByWhite" class="captured-pieces"></div>
             </div>
+            <div id="blackClockBox" class="clock-box board-clock top">
+                <p>Black</p>
+                <strong id="blackTimer">10:00</strong>
+            </div>
             <div id="chessboard"></div>
+            <div id="whiteClockBox" class="clock-box board-clock bottom active">
+                <p>White</p>
+                <strong id="whiteTimer">10:00</strong>
+            </div>
             <div class="captured-strip">
                 <p>Captured by Black</p>
                 <div id="capturedByBlack" class="captured-pieces"></div>
@@ -34,6 +42,24 @@
         </section>
 
         <aside id="moveTracker" class="move-tracker game-move-panel">
+            <div class="time-control-panel">
+                <label for="timeControlSelect">Time Control</label>
+                <div class="time-control-row">
+                    <select id="timeControlSelect">
+                        <option value="bullet-1">Bullet 1+0</option>
+                        <option value="blitz-3">Blitz 3+0</option>
+                        <option value="blitz-5">Blitz 5+0</option>
+                        <option value="rapid-10" selected>Rapid 10+0</option>
+                        <option value="rapid-15">Rapid 15+0</option>
+                        <option value="classical-30">Classical 30+0</option>
+                        <option value="classical-60">Classical 60+0</option>
+                        <option value="custom">Custom</option>
+                    </select>
+                    <input id="customMinutes" type="number" min="1" max="180" step="1" value="10" aria-label="Custom minutes" />
+                    <button id="setTimeControlBtn" type="button">Set</button>
+                </div>
+            </div>
+
             <h2>Moves</h2>
             <div id="moveList" class="move-list"></div>
         </aside>

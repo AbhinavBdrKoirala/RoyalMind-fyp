@@ -972,18 +972,19 @@ body.dashboard-page {
 
 body.game-page {
     margin: 0;
-    min-height: 100vh;
+    height: 100vh;
     font-family: "Trebuchet MS", "Segoe UI", sans-serif;
     background:
         radial-gradient(circle at 14% 18%, rgba(111, 154, 83, 0.24), transparent 48%),
         radial-gradient(circle at 88% 84%, rgba(38, 54, 45, 0.5), transparent 50%),
         linear-gradient(180deg, #121914 0%, #0f1411 100%);
     color: #f1f5ec;
+    overflow: hidden;
 }
 
 .game-header {
     width: min(1180px, 94%);
-    margin: 20px auto 0;
+    margin: 10px auto 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1007,11 +1008,12 @@ body.game-page {
 
 .game-shell {
     width: min(1180px, 94%);
-    margin: 18px auto 24px;
+    height: calc(100vh - 74px);
+    margin: 8px auto 10px;
     display: grid;
     grid-template-columns: minmax(0, 1fr) 320px;
     gap: 22px;
-    align-items: start;
+    align-items: stretch;
 }
 
 .board-panel,
@@ -1024,7 +1026,11 @@ body.game-page {
 }
 
 .board-panel {
-    padding: 16px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    --board-size: min(58vh, 52vw, 560px);
 }
 
 .board-panel-head {
@@ -1047,7 +1053,7 @@ body.game-page {
 }
 
 body.game-page #chessboard {
-    width: min(62vw, 620px);
+    width: var(--board-size);
     aspect-ratio: 1 / 1;
     height: auto;
     margin: 0 auto;
@@ -1056,6 +1062,7 @@ body.game-page #chessboard {
     overflow: hidden;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
     position: relative;
+    flex-shrink: 0;
 }
 
 body.game-page .square {
@@ -1124,11 +1131,13 @@ body.game-page .legal-move-square {
 }
 
 .captured-strip {
-    margin: 8px 0 10px;
-    padding: 8px 10px;
+    margin: 6px 0 8px;
+    padding: 6px 10px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(220, 231, 208, 0.12);
+    width: var(--board-size);
+    box-sizing: border-box;
 }
 
 .captured-strip p {
@@ -1149,16 +1158,119 @@ body.game-page .legal-move-square {
 }
 
 .captured-pieces img {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     opacity: 0.9;
 }
 
+.captured-empty {
+    color: rgba(220, 231, 208, 0.62);
+    font-size: 12px;
+}
+
 .game-move-panel {
-    height: min(760px, calc(100vh - 130px));
-    padding: 16px;
+    height: 100%;
+    padding: 14px;
     text-align: left;
-    overflow-y: auto;
+    overflow: visible;
+    display: flex;
+    flex-direction: column;
+}
+
+.time-control-panel {
+    margin-bottom: 12px;
+}
+
+.time-control-panel label {
+    display: block;
+    margin-bottom: 6px;
+    color: #c6d6bc;
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.time-control-row {
+    display: grid;
+    grid-template-columns: 1fr 80px auto;
+    gap: 6px;
+}
+
+.time-control-row select,
+.time-control-row input {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid rgba(220, 231, 208, 0.2);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    color: #eff5ea;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+.time-control-row input {
+    display: none;
+}
+
+.time-control-row select option {
+    background: #1b2419;
+    color: #eff5ea;
+}
+
+.time-control-row button {
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #121a0f;
+    background: linear-gradient(180deg, #97bf73, #769f52);
+}
+
+.clock-stack {
+    display: grid;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+.clock-box {
+    border-radius: 10px;
+    border: 1px solid rgba(220, 231, 208, 0.16);
+    background: rgba(255, 255, 255, 0.03);
+    padding: 10px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.board-clock {
+    width: var(--board-size);
+    box-sizing: border-box;
+    margin: 0 0 8px 0;
+    flex-shrink: 0;
+}
+
+.board-clock.bottom {
+    margin: 8px 0 8px auto;
+}
+
+.clock-box p {
+    margin: 0;
+    color: #c2d0b8;
+    font-weight: 700;
+}
+
+.clock-box strong {
+    font-size: 22px;
+    letter-spacing: 0.6px;
+}
+
+.clock-box.active {
+    border-color: rgba(151, 191, 115, 0.62);
+    background: rgba(151, 191, 115, 0.14);
 }
 
 .game-move-panel h2 {
@@ -1167,6 +1279,14 @@ body.game-page .legal-move-square {
     padding-bottom: 8px;
     font-size: 18px;
     letter-spacing: 0.4px;
+    flex-shrink: 0;
+}
+
+.move-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
 }
 
 body.game-page .move-row {
@@ -1226,26 +1346,32 @@ body.game-page .promotion-container {
 @media (max-width: 1050px) {
     .game-shell {
         grid-template-columns: 1fr;
+        height: calc(100vh - 74px);
     }
 
     .game-move-panel {
-        height: 280px;
+        min-height: 220px;
     }
 
     body.game-page #chessboard {
-        width: min(86vw, 560px);
+        width: min(66vh, 86vw, 520px);
+    }
+
+    .board-panel {
+        --board-size: min(66vh, 86vw, 520px);
     }
 }
 
 @media (max-width: 680px) {
     .game-header {
         flex-direction: column;
-        gap: 10px;
+        gap: 6px;
         align-items: flex-start;
     }
 
     .board-panel {
-        padding: 12px;
+        padding: 10px;
+        --board-size: min(80vw, 420px);
     }
 
     .board-panel-head {
@@ -1256,6 +1382,14 @@ body.game-page .promotion-container {
 
     .game-move-panel {
         padding: 12px;
+    }
+
+    .time-control-row {
+        grid-template-columns: 1fr;
+    }
+
+    .board-clock {
+        width: 100%;
     }
 
     .captured-pieces img {

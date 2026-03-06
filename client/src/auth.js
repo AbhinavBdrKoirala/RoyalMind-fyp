@@ -112,15 +112,16 @@ if (loginForm) {
                 }
                 : { email, password };
 
-            const response = await fetch(`http://localhost:7000/api/auth/${endpoint}`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify(payload)
-            });
+            const response = await postAuthRequest(endpoint, payload);
 
-            const data = await response.json();
+            const raw = await response.text();
+            let data = {};
+
+            try {
+                data = raw ? JSON.parse(raw) : {};
+            } catch {
+                data = { error: raw || "Unexpected server response" };
+            }
 
             if (response.ok) {
                 if (isRegisterMode) {
@@ -148,7 +149,28 @@ if (loginForm) {
 
         } catch (error) {
             console.error(error);
-            alert("Server error");
+            alert("Cannot connect to server. Please make sure backend is running on port 7000.");
         }
     });
+}
+
+async function postAuthRequest(endpoint, payload) {
+    const apiBases = ["http://127.0.0.1:7000", "http://localhost:7000"];
+    let lastError = null;
+
+    for (const base of apiBases) {
+        try {
+            return await fetch(`${base}/api/auth/${endpoint}`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify(payload)
+            });
+        } catch (error) {
+            lastError = error;
+        }
+    }
+
+    throw lastError || new Error("Unable to connect to auth server");
 }
