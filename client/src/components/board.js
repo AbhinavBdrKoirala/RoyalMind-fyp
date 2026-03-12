@@ -7,6 +7,9 @@ let moveHistory = [];
 let moveNumber = 1;
 let capturedByWhite = [];
 let capturedByBlack = [];
+let moveSequence = [];
+let lastMoveMeta = null;
+let pendingPromotionMeta = null;
 let timerInterval = null;
 let whiteTimeLeft = 600;
 let blackTimeLeft = 600;
@@ -242,6 +245,9 @@ function resetGameState(timeInSeconds = 600) {
     moveNumber = 1;
     capturedByWhite = [];
     capturedByBlack = [];
+    moveSequence = [];
+    lastMoveMeta = null;
+    pendingPromotionMeta = null;
     boardState = initialBoardState.map(row => [...row]);
     whiteTimeLeft = timeInSeconds;
     blackTimeLeft = timeInSeconds;
@@ -301,7 +307,9 @@ function handleSquareClick(square) {
     const moved = tryMove(selectedPiece, row, col);
 
     if (moved) {
-        recordMove(movingPiece, fromRow, fromCol, row, col);
+        if (!pendingPromotionMeta) {
+            finalizeMoveRecord(lastMoveMeta);
+        }
 
         currentTurn = currentTurn === "white" ? "black" : "white";
         if (!timerRunning) {
@@ -340,6 +348,16 @@ function tryMove(selected, targetRow, targetCol) {
     boardState[targetRow][targetCol] = piece;
     boardState[row][col] = "";
 
+    lastMoveMeta = {
+        fromRow: row,
+        fromCol: col,
+        toRow: targetRow,
+        toCol: targetCol,
+        piece,
+        captured: capturedPiece || null,
+        promotedTo: null
+    };
+
     if (capturedPiece !== "") {
         if (piece.startsWith("w")) {
             capturedByWhite.push(capturedPiece);
@@ -350,8 +368,14 @@ function tryMove(selected, targetRow, targetCol) {
 
     // 3️⃣ Handle pawn promotion
     if ((piece === "wp" && targetRow === 0) || (piece === "bp" && targetRow === 7)) {
+        pendingPromotionMeta = { ...lastMoveMeta, promotedTo: null };
         showPromotionUI(piece.startsWith("w") ? "white" : "black", promoted => {
             boardState[targetRow][targetCol] = promoted;
+            if (pendingPromotionMeta) {
+                pendingPromotionMeta.promotedTo = promoted;
+                finalizeMoveRecord(pendingPromotionMeta);
+                pendingPromotionMeta = null;
+            }
             createBoard();
         });
     }
@@ -742,7 +766,9 @@ function toAlgebraic(row, col) {
     const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
     return files[col] + (8 - row);
 }
-function recordMove(piece, fromRow, fromCol, toRow, toCol) {
+function finalizeMoveRecord(moveMeta) {
+    if (!moveMeta) return;
+    const { piece, fromRow, fromCol, toRow, toCol, captured, promotedTo } = moveMeta;
     const moveList = document.getElementById("moveList");
 
     const to = toAlgebraic(toRow, toCol);
@@ -784,6 +810,16 @@ function recordMove(piece, fromRow, fromCol, toRow, toCol) {
 
         moveNumber++;
     }
+
+    moveSequence.push({
+        fromRow,
+        fromCol,
+        toRow,
+        toCol,
+        piece,
+        captured,
+        promotedTo
+    });
 }
 function saveGameResult(winnerColor) {
     const user = localStorage.getItem("royalmindUser");
@@ -793,7 +829,8 @@ function saveGameResult(winnerColor) {
         user: user,
         date: new Date().toLocaleString(),
         winner: winnerColor,
-        moves: document.getElementById("moveList").innerHTML
+        moves: moveSequence,
+        movesHtml: document.getElementById("moveList").innerHTML
     };
 
     const existingGames = JSON.parse(localStorage.getItem("royalmindHistory")) || [];

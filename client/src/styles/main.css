@@ -967,6 +967,133 @@ body.dashboard-page {
 }
 
 /* ===============================
+   History Page
+================================ */
+
+body.history-page {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    background:
+        radial-gradient(circle at 16% 18%, rgba(111, 154, 83, 0.24), transparent 48%),
+        radial-gradient(circle at 88% 84%, rgba(38, 54, 45, 0.5), transparent 50%),
+        linear-gradient(180deg, #121914 0%, #0f1411 100%);
+    color: #f1f5ec;
+}
+
+.history-header {
+    width: min(1180px, 94%);
+    margin: 16px auto 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.history-shell {
+    width: min(1180px, 94%);
+    margin: 16px auto 40px;
+}
+
+.history-shell h1 {
+    margin: 0 0 16px;
+    font-size: clamp(26px, 3vw, 36px);
+}
+
+.history-list {
+    display: grid;
+    gap: 16px;
+}
+
+.history-card {
+    border-radius: 16px;
+    background: rgba(19, 25, 17, 0.84);
+    border: 1px solid rgba(220, 231, 208, 0.08);
+    padding: 16px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.3);
+}
+
+.history-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.history-card-head h3 {
+    margin: 0;
+    font-size: 18px;
+}
+
+.history-card-head p {
+    margin: 4px 0 0;
+    color: #b8c7af;
+    font-size: 13px;
+}
+
+.history-winner {
+    padding: 8px 12px;
+    border-radius: 10px;
+    background: rgba(151, 191, 115, 0.16);
+    border: 1px solid rgba(151, 191, 115, 0.35);
+    font-weight: 700;
+}
+
+.history-board-wrap {
+    display: grid;
+    gap: 10px;
+}
+
+.history-board {
+    width: min(420px, 100%);
+    aspect-ratio: 1 / 1;
+    border-radius: 12px;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    grid-template-rows: repeat(8, 1fr);
+    border: 1px solid rgba(220, 231, 208, 0.2);
+}
+
+.history-square img {
+    width: 78%;
+    height: 78%;
+}
+
+.history-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.history-btn {
+    border: 0;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-weight: 700;
+    cursor: pointer;
+    color: #121a0f;
+    background: linear-gradient(180deg, #97bf73, #769f52);
+}
+
+.history-step {
+    color: #c5d3bc;
+    font-weight: 700;
+}
+
+.history-moves-note {
+    color: #b8c7af;
+    font-size: 13px;
+}
+
+@media (max-width: 900px) {
+    .history-card-head {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
+/* ===============================
    Game Page Theme
 ================================ */
 
@@ -983,8 +1110,8 @@ body.game-page {
 }
 
 .game-header {
-    width: min(1180px, 94%);
-    margin: 10px auto 0;
+    width: min(1320px, 96%);
+    margin: 8px auto 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1007,12 +1134,12 @@ body.game-page {
 }
 
 .game-shell {
-    width: min(1180px, 94%);
-    height: calc(100vh - 74px);
-    margin: 8px auto 10px;
+    width: min(1320px, 96%);
+    height: calc(100vh - 66px);
+    margin: 6px auto 8px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 320px;
-    gap: 22px;
+    grid-template-columns: minmax(0, 1.15fr) 300px;
+    gap: 16px;
     align-items: stretch;
 }
 
@@ -1026,18 +1153,18 @@ body.game-page {
 }
 
 .board-panel {
-    padding: 12px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    --board-size: min(58vh, 52vw, 560px);
+    align-items: stretch;
+    --board-size: clamp(300px, min(56vw, calc(100vh - 430px)), 620px);
 }
 
 .board-panel-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
 }
 
 .board-panel-head h1 {
@@ -1063,6 +1190,7 @@ body.game-page #chessboard {
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.32);
     position: relative;
     flex-shrink: 0;
+    align-self: center;
 }
 
 body.game-page .square {
@@ -1131,17 +1259,21 @@ body.game-page .legal-move-square {
 }
 
 .captured-strip {
-    margin: 6px 0 8px;
+    margin: 5px 0 6px;
     padding: 6px 10px;
     border-radius: 10px;
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(220, 231, 208, 0.12);
-    width: var(--board-size);
+    width: 100%;
     box-sizing: border-box;
+    min-height: 64px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
 }
 
 .captured-strip p {
-    margin: 0 0 6px;
+    margin: 0 0 4px;
     color: #bdd0b1;
     font-size: 12px;
     font-weight: 700;
@@ -1247,14 +1379,15 @@ body.game-page .legal-move-square {
 }
 
 .board-clock {
-    width: var(--board-size);
+    width: 100%;
     box-sizing: border-box;
-    margin: 0 0 8px 0;
+    margin: 0 0 6px 0;
     flex-shrink: 0;
+    padding: 8px 12px;
 }
 
 .board-clock.bottom {
-    margin: 8px 0 8px auto;
+    margin: 6px 0 6px 0;
 }
 
 .clock-box p {
@@ -1346,7 +1479,7 @@ body.game-page .promotion-container {
 @media (max-width: 1050px) {
     .game-shell {
         grid-template-columns: 1fr;
-        height: calc(100vh - 74px);
+        height: calc(100vh - 66px);
     }
 
     .game-move-panel {
@@ -1358,7 +1491,7 @@ body.game-page .promotion-container {
     }
 
     .board-panel {
-        --board-size: min(66vh, 86vw, 520px);
+        --board-size: min(86vw, clamp(300px, calc(100vh - 470px), 500px));
     }
 }
 
@@ -1371,7 +1504,7 @@ body.game-page .promotion-container {
 
     .board-panel {
         padding: 10px;
-        --board-size: min(80vw, 420px);
+        --board-size: min(88vw, clamp(260px, calc(100vh - 500px), 420px));
     }
 
     .board-panel-head {

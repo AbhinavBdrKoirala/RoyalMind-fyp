@@ -1,13 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Game History</title>
     <link rel="stylesheet" href="src/styles/main.css">
 </head>
-<body>
+<body class="history-page">
+    <header class="history-header">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">&#9818;</span>
+            <span class="brand-text">RoyalMind</span>
+        </div>
+        <a class="game-back-link" href="dashboard.html">Back to Dashboard</a>
+    </header>
 
-    <h1>Your Game History</h1>
-    <div id="historyContainer"></div>
+    <main class="history-shell">
+        <h1>Your Game History</h1>
+        <div id="historyContainer" class="history-list"></div>
+    </main>
 
     <script src="src/history.js"></script>
 </body>
