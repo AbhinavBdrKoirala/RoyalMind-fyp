@@ -101,6 +101,15 @@ router.post('/register', async (req, res) => {
 
     } catch (error) {
         console.error(error);
+        if (error.code === '28P01') {
+            return res.status(500).json({ error: "Database authentication failed. Check DB_USER/DB_PASSWORD." });
+        }
+        if (error.code === '3D000') {
+            return res.status(500).json({ error: "Database not found. Check DB_NAME in server/.env." });
+        }
+        if (error.code === 'ECONNREFUSED') {
+            return res.status(500).json({ error: "Database connection refused. Ensure PostgreSQL is running." });
+        }
         res.status(500).json({ error: "Registration failed. Please try again." });
     }
 });
@@ -133,7 +142,16 @@ router.post('/login', async (req, res) => {
             { expiresIn: '1h' }
         );
 
-        res.json({ token });
+        res.json({
+            token,
+            user: {
+                id: user.rows[0].id,
+                email: user.rows[0].email,
+                username: user.rows[0].username,
+                firstName: user.rows[0].first_name,
+                lastName: user.rows[0].last_name
+            }
+        });
 
     } catch (error) {
         console.error(error);

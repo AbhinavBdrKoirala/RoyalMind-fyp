@@ -15,6 +15,10 @@ let whiteTimeLeft = 600;
 let blackTimeLeft = 600;
 let timerRunning = false;
 let uiInitialized = false;
+let currentGameId = null;
+let remoteSyncFailed = false;
+
+const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
 
 const TIME_PRESETS = {
     "bullet-1": 60,
@@ -248,6 +252,8 @@ function resetGameState(timeInSeconds = 600) {
     moveSequence = [];
     lastMoveMeta = null;
     pendingPromotionMeta = null;
+    currentGameId = null;
+    remoteSyncFailed = false;
     boardState = initialBoardState.map(row => [...row]);
     whiteTimeLeft = timeInSeconds;
     blackTimeLeft = timeInSeconds;
@@ -820,10 +826,73 @@ function finalizeMoveRecord(moveMeta) {
         captured,
         promotedTo
     });
+
+    syncRemoteGame();
+}
+
+async function apiFetch(path, options = {}) {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+
+    for (const base of API_BASES) {
+        try {
+            const response = await fetch(`${base}${path}`, {
+                ...options,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    ...(options.headers || {})
+                }
+            });
+            return response;
+        } catch (error) {
+            // try next base
+        }
+    }
+    return null;
+}
+
+async function startRemoteGameIfNeeded() {
+    if (currentGameId || remoteSyncFailed) return;
+
+    const response = await apiFetch("/api/games/start", {
+        method: "POST",
+        body: JSON.stringify({
+            opponent: "Local",
+            moves: moveSequence
+        })
+    });
+
+    if (!response || !response.ok) {
+        remoteSyncFailed = true;
+        return;
+    }
+
+    const data = await response.json();
+    currentGameId = data.id;
+}
+
+async function syncRemoteGame({ final = false, winner = null } = {}) {
+    if (remoteSyncFailed) return;
+
+    await startRemoteGameIfNeeded();
+    if (!currentGameId) return;
+
+    const response = await apiFetch(`/api/games/${currentGameId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+            moves: moveSequence,
+            status: final ? "finished" : "in_progress",
+            result: final ? (winner || "finished") : null
+        })
+    });
+
+    if (!response || !response.ok) {
+        remoteSyncFailed = true;
+    }
 }
 function saveGameResult(winnerColor) {
-    const user = localStorage.getItem("royalmindUser");
-    if (!user) return;
+    const user = localStorage.getItem("royalmindUser") || "Guest";
 
     const gameData = {
         user: user,
@@ -838,6 +907,8 @@ function saveGameResult(winnerColor) {
     existingGames.push(gameData);
 
     localStorage.setItem("royalmindHistory", JSON.stringify(existingGames));
+
+    syncRemoteGame({ final: true, winner: winnerColor });
 }
 
 

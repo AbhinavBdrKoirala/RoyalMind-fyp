@@ -132,6 +132,7 @@ if (loginForm) {
                 }
 
                 localStorage.setItem("token", data.token);
+                localStorage.setItem("royalmindUser", (data.user && (data.user.username || data.user.email)) || email);
 
                 alert("Login successful!");
 

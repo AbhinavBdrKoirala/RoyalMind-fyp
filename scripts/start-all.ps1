@@ -58,9 +58,7 @@ Start-Process -WindowStyle Minimized -FilePath "node" -ArgumentList "index.js"
 Pop-Location
 
 Write-Host "Starting frontend..."
-Push-Location "$root\client"
-Start-Process -WindowStyle Minimized -FilePath "npx" -ArgumentList "serve ."
-Pop-Location
+Start-Process -WindowStyle Minimized -FilePath "node" -ArgumentList "$root\scripts\static-server.js"
 
 if ($OpenBrowser) {
   Start-Sleep -Seconds 2

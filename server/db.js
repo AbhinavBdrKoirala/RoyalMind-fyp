@@ -1,4 +1,7 @@
 const { Pool } = require("pg");
+const path = require("path");
+
+require("dotenv").config({ path: path.join(__dirname, ".env"), override: true });
 
 const pool = new Pool({
     host: process.env.DB_HOST,
