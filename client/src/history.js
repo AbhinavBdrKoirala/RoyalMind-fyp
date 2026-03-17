@@ -1,5 +1,27 @@
-const container = document.getElementById("historyContainer");
+const overviewSection = document.getElementById("historyOverview");
+const reviewSection = document.getElementById("historyReview");
+const listContainer = document.getElementById("historyList");
+const filterToggle = document.getElementById("filterToggle");
+const filtersPanel = document.getElementById("historyFilters");
+const filterResult = document.getElementById("filterResult");
+const filterOpponent = document.getElementById("filterOpponent");
+const filterMoves = document.getElementById("filterMoves");
+const filterSort = document.getElementById("filterSort");
+const applyFiltersBtn = document.getElementById("applyFilters");
+const resetFiltersBtn = document.getElementById("resetFilters");
+const backToHistoryBtn = document.getElementById("backToHistory");
+
+const reviewTitle = document.getElementById("reviewTitle");
+const reviewDate = document.getElementById("reviewDate");
+const reviewWinner = document.getElementById("reviewWinner");
+const reviewBoard = document.getElementById("reviewBoard");
+const reviewControls = document.getElementById("reviewControls");
+const reviewMovesList = document.getElementById("reviewMovesList");
+const reviewMovesNote = document.getElementById("reviewMovesNote");
+
 const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
+let allGames = [];
+let filteredGames = [];
 
 async function fetchGamesFromServer() {
     const token = localStorage.getItem("token");
@@ -39,241 +61,329 @@ function normalizeServerGames(games) {
             moves = game.moves;
         }
 
+        const playedAt = game.played_at ? new Date(game.played_at) : null;
+
         return {
             id: game.id,
-            date: game.played_at ? new Date(game.played_at).toLocaleString() : "Unknown date",
+            date: playedAt ? playedAt.toLocaleString() : "Unknown date",
+            timestamp: playedAt ? playedAt.getTime() : 0,
             winner: game.result || "Unknown",
+            opponent: game.opponent || "Local",
             moves
         };
     });
 }
 
-async function renderHistory() {
+function normalizeLocalGames(games) {
+    return games.map((game, index) => {
+        const dateObj = game.date ? new Date(game.date) : null;
+        return {
+            id: game.id || `local-${index}`,
+            date: game.date || "Unknown date",
+            timestamp: dateObj ? dateObj.getTime() : 0,
+            winner: game.winner || "Unknown",
+            opponent: game.opponent || "Local",
+            moves: Array.isArray(game.moves) ? game.moves : null
+        };
+    });
+}
+
+function populateResultFilter(games) {
+    if (!filterResult) return;
+    const options = ["Any Result", ...new Set(games.map(g => g.winner).filter(Boolean))];
+    filterResult.innerHTML = "";
+    options.forEach((opt, index) => {
+        const option = document.createElement("option");
+        option.value = index === 0 ? "any" : opt;
+        option.textContent = opt;
+        filterResult.appendChild(option);
+    });
+}
+
+function applyFilters() {
+    const resultValue = filterResult ? filterResult.value : "any";
+    const opponentValue = filterOpponent ? filterOpponent.value.trim().toLowerCase() : "";
+    const minMoves = filterMoves ? Number(filterMoves.value) : 0;
+    const sortMode = filterSort ? filterSort.value : "recent";
+
+    filteredGames = allGames.filter(game => {
+        const matchesResult = resultValue === "any" || game.winner === resultValue;
+        const matchesOpponent = !opponentValue || game.opponent.toLowerCase().includes(opponentValue);
+        const moveCount = Array.isArray(game.moves) ? game.moves.length : 0;
+        const matchesMoves = !minMoves || moveCount >= minMoves;
+        return matchesResult && matchesOpponent && matchesMoves;
+    });
+
+    filteredGames.sort((a, b) => {
+        if (sortMode === "oldest") return a.timestamp - b.timestamp;
+        return b.timestamp - a.timestamp;
+    });
+
+    renderList(filteredGames);
+}
+
+function resetFilters() {
+    if (filterOpponent) filterOpponent.value = "";
+    if (filterMoves) filterMoves.value = "";
+    if (filterSort) filterSort.value = "recent";
+    if (filterResult) filterResult.value = "any";
+    applyFilters();
+}
+
+function renderList(games) {
+    if (!listContainer) return;
+    listContainer.innerHTML = "";
+
+    if (!games || games.length === 0) {
+        listContainer.innerHTML = "<div class=\"history-empty\">No games found.</div>";
+        return;
+    }
+
+    games.forEach((game, index) => {
+        const displayNumber = games.length - index;
+        const row = document.createElement("div");
+        row.className = "history-row";
+        row.innerHTML = `
+            <div class="history-cell history-cell-game">
+                <div class="history-game-label">Game ${displayNumber}</div>
+                <div class="history-game-opponent">vs ${game.opponent || "Local"}</div>
+            </div>
+            <div class="history-cell">
+                <span class="history-result-pill">${game.winner || "Unknown"}</span>
+            </div>
+            <div class="history-cell">${Array.isArray(game.moves) ? game.moves.length : 0}</div>
+            <div class="history-cell">${game.date || "Unknown date"}</div>
+            <div class="history-cell history-cell-actions">
+                <button class="history-mini-btn" data-action="review" data-id="${game.id}" data-display="${displayNumber}">Review</button>
+                <button class="history-mini-btn ghost" data-action="analyze" data-id="${game.id}" data-display="${displayNumber}">Analyze</button>
+            </div>
+        `;
+
+        listContainer.appendChild(row);
+    });
+}
+
+function showReview(game, displayNumber) {
+    if (!game) return;
+    if (overviewSection) overviewSection.classList.add("hidden");
+    if (reviewSection) reviewSection.classList.remove("hidden");
+
+    if (reviewTitle) reviewTitle.textContent = `Game ${displayNumber || game.id}`;
+    if (reviewDate) reviewDate.textContent = game.date || "Unknown date";
+    if (reviewWinner) reviewWinner.textContent = `Winner: ${game.winner || "Unknown"}`;
+
+    setupReviewBoard(game);
+}
+
+function showOverview() {
+    if (reviewSection) reviewSection.classList.add("hidden");
+    if (overviewSection) overviewSection.classList.remove("hidden");
+}
+
+function setupReviewBoard(game) {
+    reviewControls.innerHTML = `
+        <button class="history-btn ghost" data-action="start">Start</button>
+        <button class="history-btn" data-action="prev">Rewind</button>
+        <button class="history-btn" data-action="next">Play</button>
+        <button class="history-btn ghost" data-action="end">End</button>
+        <button class="history-btn" data-action="auto">Auto</button>
+        <label class="history-speed">
+            <span>Speed</span>
+            <input class="history-speed-input" type="range" min="0.5" max="2" step="0.25" value="1">
+            <span class="history-speed-value">1x</span>
+        </label>
+        <span class="history-step">0 / 0</span>
+    `;
+
+    const moves = Array.isArray(game.moves) ? game.moves : null;
+    reviewMovesNote.textContent = "";
+
+    if (!moves) {
+        reviewMovesNote.textContent = "Replay not available for this game.";
+        renderBoard(reviewBoard, getInitialBoard());
+        reviewMovesList.innerHTML = "<div class=\"history-move-row empty\">No moves available.</div>";
+        reviewMovesList.onclick = null;
+        return;
+    }
+
+    let currentIndex = 0;
+    let boardState = getInitialBoard();
+    let autoTimer = null;
+    let autoPlaying = false;
+    const speedInput = reviewControls.querySelector(".history-speed-input");
+    const speedValue = reviewControls.querySelector(".history-speed-value");
+    const autoButton = reviewControls.querySelector('[data-action="auto"]');
+    const stepLabel = reviewControls.querySelector(".history-step");
+    const annotatedMoves = buildAnnotatedMoves(moves);
+
+    const updateStep = () => {
+        stepLabel.textContent = `${currentIndex} / ${moves.length}`;
+    };
+
+    const applyMove = (move, forward) => {
+        if (forward) {
+            boardState[move.toRow][move.toCol] = move.promotedTo || move.piece;
+            boardState[move.fromRow][move.fromCol] = "";
+        } else {
+            boardState[move.fromRow][move.fromCol] = move.piece;
+            boardState[move.toRow][move.toCol] = move.captured || "";
+        }
+    };
+
+    const stopAuto = () => {
+        if (autoTimer) {
+            clearInterval(autoTimer);
+            autoTimer = null;
+        }
+        autoPlaying = false;
+        if (autoButton) autoButton.textContent = "Auto";
+    };
+
+    const startAuto = () => {
+        stopAuto();
+        autoPlaying = true;
+        if (autoButton) autoButton.textContent = "Pause";
+        const speed = Number(speedInput ? speedInput.value : 1) || 1;
+        const delay = Math.max(150, 800 / speed);
+        autoTimer = setInterval(() => {
+            if (currentIndex >= moves.length) {
+                stopAuto();
+                return;
+            }
+            applyMove(moves[currentIndex], true);
+            currentIndex += 1;
+            renderBoard(reviewBoard, boardState);
+            updateStep();
+            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+        }, delay);
+    };
+
+    reviewControls.onclick = (event) => {
+        const action = event.target.getAttribute("data-action");
+        if (!action) return;
+
+        if (action === "start") {
+            stopAuto();
+            boardState = getInitialBoard();
+            currentIndex = 0;
+            renderBoard(reviewBoard, boardState);
+            updateStep();
+            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+            return;
+        }
+
+        if (action === "next" && currentIndex < moves.length) {
+            stopAuto();
+            applyMove(moves[currentIndex], true);
+            currentIndex += 1;
+            renderBoard(reviewBoard, boardState);
+            updateStep();
+            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+        }
+
+        if (action === "prev" && currentIndex > 0) {
+            stopAuto();
+            currentIndex -= 1;
+            applyMove(moves[currentIndex], false);
+            renderBoard(reviewBoard, boardState);
+            updateStep();
+            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+        }
+
+        if (action === "end") {
+            stopAuto();
+            boardState = getInitialBoard();
+            for (let i = 0; i < moves.length; i += 1) {
+                applyMove(moves[i], true);
+            }
+            currentIndex = moves.length;
+            renderBoard(reviewBoard, boardState);
+            updateStep();
+            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+        }
+
+        if (action === "auto") {
+            if (autoPlaying) {
+                stopAuto();
+            } else {
+                startAuto();
+            }
+        }
+    };
+
+    reviewMovesList.onclick = (event) => {
+        const target = event.target.closest("[data-move-index]");
+        if (!target) return;
+
+        const index = Number(target.dataset.moveIndex);
+        if (!Number.isFinite(index) || index < 0 || index >= moves.length) return;
+
+        stopAuto();
+        boardState = getInitialBoard();
+        for (let i = 0; i <= index; i += 1) {
+            applyMove(moves[i], true);
+        }
+
+        currentIndex = index + 1;
+        renderBoard(reviewBoard, boardState);
+        updateStep();
+        renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+    };
+
+    renderBoard(reviewBoard, boardState);
+    updateStep();
+    renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+
+    if (speedInput && speedValue) {
+        speedValue.textContent = `${speedInput.value}x`;
+        speedInput.addEventListener("input", () => {
+            speedValue.textContent = `${speedInput.value}x`;
+            if (autoPlaying) {
+                startAuto();
+            }
+        });
+    }
+}
+
+async function initHistory() {
     let games = await fetchGamesFromServer();
     if (!games) {
-        games = getLocalGames();
+        games = normalizeLocalGames(getLocalGames());
     } else {
         games = normalizeServerGames(games);
     }
 
-    if (!games || games.length === 0) {
-        container.innerHTML = "<p>No games played yet.</p>";
-        return;
-    }
-
-    const list = [...games].reverse();
-
-    list.forEach((game, index) => {
-        const card = document.createElement("div");
-        card.className = "history-card";
-
-        const header = document.createElement("div");
-        header.className = "history-card-head";
-        header.innerHTML = `
-            <div>
-                <h3>Game ${list.length - index}</h3>
-                <p>${game.date || "Unknown date"}</p>
-            </div>
-            <div class="history-winner">Winner: ${game.winner || "Unknown"}</div>
-        `;
-
-        const boardWrap = document.createElement("div");
-        boardWrap.className = "history-board-wrap";
-
-        const boardSide = document.createElement("div");
-        boardSide.className = "history-board-side";
-
-        const board = document.createElement("div");
-        board.className = "history-board";
-
-        const controls = document.createElement("div");
-        controls.className = "history-controls";
-        controls.innerHTML = `
-            <button class="history-btn ghost" data-action="start">Start</button>
-            <button class="history-btn" data-action="prev">Rewind</button>
-            <button class="history-btn" data-action="next">Play</button>
-            <button class="history-btn ghost" data-action="end">End</button>
-            <button class="history-btn" data-action="auto">Auto</button>
-            <label class="history-speed">
-                <span>Speed</span>
-                <input class="history-speed-input" type="range" min="0.5" max="2" step="0.25" value="1">
-                <span class="history-speed-value">1x</span>
-            </label>
-            <span class="history-step">0 / 0</span>
-        `;
-
-        const movesNote = document.createElement("div");
-        movesNote.className = "history-moves-note";
-
-        boardSide.appendChild(board);
-        boardSide.appendChild(controls);
-        boardSide.appendChild(movesNote);
-
-        const movesPanel = document.createElement("div");
-        movesPanel.className = "history-moves-panel";
-        movesPanel.innerHTML = `
-            <div class="history-moves-title">Moves</div>
-            <div class="history-moves-list"></div>
-        `;
-
-        boardWrap.appendChild(boardSide);
-        boardWrap.appendChild(movesPanel);
-
-        card.appendChild(header);
-        card.appendChild(boardWrap);
-        container.appendChild(card);
-
-        const moves = Array.isArray(game.moves) ? game.moves : null;
-        const movesListEl = movesPanel.querySelector(".history-moves-list");
-
-        if (!moves) {
-            movesNote.textContent = "Replay not available for this game.";
-            renderBoard(board, getInitialBoard());
-            movesListEl.innerHTML = "<div class=\"history-move-row empty\">No moves available.</div>";
-            return;
-        }
-
-        let currentIndex = 0;
-        let boardState = getInitialBoard();
-        let autoTimer = null;
-        let autoPlaying = false;
-        const speedInput = controls.querySelector(".history-speed-input");
-        const speedValue = controls.querySelector(".history-speed-value");
-        const autoButton = controls.querySelector('[data-action="auto"]');
-        const stepLabel = controls.querySelector(".history-step");
-        const annotatedMoves = buildAnnotatedMoves(moves);
-
-        const updateStep = () => {
-            stepLabel.textContent = `${currentIndex} / ${moves.length}`;
-        };
-
-        const applyMove = (move, forward) => {
-            if (forward) {
-                boardState[move.toRow][move.toCol] = move.promotedTo || move.piece;
-                boardState[move.fromRow][move.fromCol] = "";
-            } else {
-                boardState[move.fromRow][move.fromCol] = move.piece;
-                boardState[move.toRow][move.toCol] = move.captured || "";
-            }
-        };
-
-        const stopAuto = () => {
-            if (autoTimer) {
-                clearInterval(autoTimer);
-                autoTimer = null;
-            }
-            autoPlaying = false;
-            if (autoButton) autoButton.textContent = "Auto";
-        };
-
-        const startAuto = () => {
-            stopAuto();
-            autoPlaying = true;
-            if (autoButton) autoButton.textContent = "Pause";
-            const speed = Number(speedInput ? speedInput.value : 1) || 1;
-            const delay = Math.max(150, 800 / speed);
-            autoTimer = setInterval(() => {
-                if (currentIndex >= moves.length) {
-                    stopAuto();
-                    return;
-                }
-                applyMove(moves[currentIndex], true);
-                currentIndex += 1;
-                renderBoard(board, boardState);
-                updateStep();
-                renderMovesList(movesListEl, annotatedMoves, currentIndex);
-            }, delay);
-        };
-
-        controls.addEventListener("click", (event) => {
-            const action = event.target.getAttribute("data-action");
-            if (!action) return;
-
-            if (action === "start") {
-                stopAuto();
-                boardState = getInitialBoard();
-                currentIndex = 0;
-                renderBoard(board, boardState);
-                updateStep();
-                renderMovesList(movesListEl, annotatedMoves, currentIndex);
-                return;
-            }
-
-            if (action === "next" && currentIndex < moves.length) {
-                stopAuto();
-                applyMove(moves[currentIndex], true);
-                currentIndex += 1;
-                renderBoard(board, boardState);
-                updateStep();
-                renderMovesList(movesListEl, annotatedMoves, currentIndex);
-            }
-
-            if (action === "prev" && currentIndex > 0) {
-                stopAuto();
-                currentIndex -= 1;
-                applyMove(moves[currentIndex], false);
-                renderBoard(board, boardState);
-                updateStep();
-                renderMovesList(movesListEl, annotatedMoves, currentIndex);
-            }
-
-            if (action === "end") {
-                stopAuto();
-                boardState = getInitialBoard();
-                for (let i = 0; i < moves.length; i += 1) {
-                    applyMove(moves[i], true);
-                }
-                currentIndex = moves.length;
-                renderBoard(board, boardState);
-                updateStep();
-                renderMovesList(movesListEl, annotatedMoves, currentIndex);
-            }
-
-            if (action === "auto") {
-                if (autoPlaying) {
-                    stopAuto();
-                } else {
-                    startAuto();
-                }
-            }
-        });
-
-        movesListEl.addEventListener("click", (event) => {
-            const target = event.target.closest("[data-move-index]");
-            if (!target) return;
-
-            const index = Number(target.dataset.moveIndex);
-            if (!Number.isFinite(index) || index < 0 || index >= moves.length) return;
-
-            stopAuto();
-            boardState = getInitialBoard();
-            for (let i = 0; i <= index; i += 1) {
-                applyMove(moves[i], true);
-            }
-
-            currentIndex = index + 1;
-            renderBoard(board, boardState);
-            updateStep();
-            renderMovesList(movesListEl, annotatedMoves, currentIndex);
-        });
-
-        renderBoard(board, boardState);
-        updateStep();
-        renderMovesList(movesListEl, annotatedMoves, currentIndex);
-
-        if (speedInput && speedValue) {
-            speedValue.textContent = `${speedInput.value}x`;
-            speedInput.addEventListener("input", () => {
-                speedValue.textContent = `${speedInput.value}x`;
-                if (autoPlaying) {
-                    startAuto();
-                }
-            });
-        }
-    });
+    allGames = Array.isArray(games) ? games : [];
+    populateResultFilter(allGames);
+    applyFilters();
 }
 
-renderHistory();
+listContainer?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-action]");
+    if (!button) return;
+    const action = button.dataset.action;
+    const id = button.dataset.id;
+    const displayNumber = button.dataset.display;
+    const game = allGames.find(g => String(g.id) === String(id));
+    if (!game) return;
+
+    if (action === "review" || action === "analyze") {
+        showReview(game, displayNumber);
+    }
+});
+
+filterToggle?.addEventListener("click", () => {
+    filtersPanel?.classList.toggle("is-open");
+});
+
+applyFiltersBtn?.addEventListener("click", applyFilters);
+resetFiltersBtn?.addEventListener("click", resetFilters);
+
+backToHistoryBtn?.addEventListener("click", () => {
+    showOverview();
+});
+
+initHistory();
 
 const pieceMap = {
     wp: "white_pawn.png",

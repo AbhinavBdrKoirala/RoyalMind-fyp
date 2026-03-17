@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoyalMind Settings</title>
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body class="settings-page">
+    <header class="settings-header">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">&#9818;</span>
+            <span class="brand-text">RoyalMind</span>
+        </div>
+        <nav class="settings-nav">
+            <a class="settings-link" href="dashboard.html">Back to Dashboard</a>
+            <button id="saveSettings" class="settings-save" type="button">Save Changes</button>
+        </nav>
+    </header>
+
+    <main class="settings-shell">
+        <aside class="settings-sidebar">
+            <section class="settings-profile">
+                <div class="profile-ring">
+                    <span class="profile-mark">&#9816;</span>
+                </div>
+                <div>
+                    <p id="profileName" class="profile-name">RoyalMind Player</p>
+                    <p id="profileMeta" class="profile-meta">Rapid 1240 | Blitz 990</p>
+                </div>
+            </section>
+
+            <nav class="settings-menu" aria-label="Settings navigation">
+                <a class="settings-menu-link active" href="#general">General</a>
+                <a class="settings-menu-link" href="#gameplay">Gameplay</a>
+                <a class="settings-menu-link" href="#appearance">Appearance</a>
+                <a class="settings-menu-link" href="#notifications">Notifications</a>
+                <a class="settings-menu-link" href="#privacy">Privacy</a>
+                <a class="settings-menu-link" href="#account">Account</a>
+            </nav>
+
+            <div class="settings-help-card">
+                <h4>Need help?</h4>
+                <p>Contact support if you want to reset your account or recover games.</p>
+                <button class="settings-secondary" type="button">Support Center</button>
+            </div>
+        </aside>
+
+        <section class="settings-content">
+            <section id="general" class="settings-panel">
+                <div class="settings-panel-head">
+                    <div>
+                        <h2>General Preferences</h2>
+                        <p>Personalize the RoyalMind experience across your devices.</p>
+                    </div>
+                    <span class="settings-tag">Synced</span>
+                </div>
+                <div class="settings-grid">
+                    <label class="settings-field">
+                        Display Name
+                        <input id="displayName" type="text" value="RoyalMind Player" />
+                    </label>
+                    <label class="settings-field">
+                        Language
+                        <select id="language">
+                            <option selected>English</option>
+                            <option>Spanish</option>
+                            <option>French</option>
+                        </select>
+                    </label>
+                    <label class="settings-field full">
+                        Time Zone
+                        <select id="timeZone">
+                            <option selected>Local device time</option>
+                            <option>UTC</option>
+                            <option>Asia/Kathmandu</option>
+                        </select>
+                    </label>
+                </div>
+            </section>
+
+            <section id="gameplay" class="settings-panel">
+                <div class="settings-panel-head">
+                    <div>
+                        <h2>Gameplay</h2>
+                        <p>Configure the way your games feel.</p>
+                    </div>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div>
+                            <h3>Auto-queen promotion</h3>
+                            <p>Always promote pawns to a queen in fast games.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="autoQueen" type="checkbox" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Show legal moves</h3>
+                            <p>Highlight squares with possible moves.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="showLegal" type="checkbox" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Move confirmation</h3>
+                            <p>Require a second click before committing a move.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="moveConfirm" type="checkbox" />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Default time control</h3>
+                            <p>Select the clock preset for casual games.</p>
+                        </div>
+                        <select id="defaultTime" class="settings-select">
+                            <option>Rapid 10+0</option>
+                            <option>Blitz 5+0</option>
+                            <option>Blitz 3+2</option>
+                            <option>Classical 30+0</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+
+            <section id="appearance" class="settings-panel">
+                <div class="settings-panel-head">
+                    <div>
+                        <h2>Appearance</h2>
+                        <p>Make the board feel like yours.</p>
+                    </div>
+                </div>
+                <div class="settings-grid">
+                    <label class="settings-field">
+                        Board Theme
+                        <select id="boardTheme">
+                            <option>Emerald</option>
+                            <option selected>Classic Wood</option>
+                            <option>Slate</option>
+                        </select>
+                    </label>
+                    <label class="settings-field">
+                        Piece Style
+                        <select id="pieceStyle">
+                            <option selected>Royal Set</option>
+                            <option>Modern</option>
+                            <option>Minimal</option>
+                        </select>
+                    </label>
+                    <label class="settings-field full">
+                        Board Coordinates
+                        <select id="boardCoordinates">
+                            <option selected>Show on all games</option>
+                            <option>Show when playing</option>
+                            <option>Hide</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="settings-divider"></div>
+                <div class="settings-row">
+                    <div>
+                        <h3>Animated pieces</h3>
+                        <p>Smooth movement when pieces slide.</p>
+                    </div>
+                        <label class="switch">
+                            <input id="animatePieces" type="checkbox" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+            </section>
+
+            <section id="notifications" class="settings-panel">
+                <div class="settings-panel-head">
+                    <div>
+                        <h2>Notifications</h2>
+                        <p>Control alerts from RoyalMind.</p>
+                    </div>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div>
+                            <h3>Game start alerts</h3>
+                            <p>Get notified when a new match begins.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="notifyGameStart" type="checkbox" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Friend challenges</h3>
+                            <p>Show pop-ups for direct invites.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="notifyChallenges" type="checkbox" />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Sound cues</h3>
+                            <p>Enable move, capture, and timer sounds.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="notifySounds" type="checkbox" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <section id="privacy" class="settings-panel">
+                <div class="settings-panel-head">
+                    <div>
+                        <h2>Privacy</h2>
+                        <p>Manage how your profile appears to others.</p>
+                    </div>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div>
+                            <h3>Show online status</h3>
+                            <p>Let friends know when you are available.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="privacyOnline" type="checkbox" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Allow direct messages</h3>
+                            <p>Receive messages from friends and club members.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="privacyDM" type="checkbox" checked />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Share game history</h3>
+                            <p>Let others view your recent games.</p>
+                        </div>
+                        <label class="switch">
+                            <input id="privacyHistory" type="checkbox" />
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </div>
+            </section>
+
+            <section id="account" class="settings-panel settings-panel-accent">
+                <div class="settings-panel-head">
+                    <div>
+                        <h2>Account</h2>
+                        <p>Security and account maintenance.</p>
+                    </div>
+                    <span class="settings-tag warn">Important</span>
+                </div>
+                <div class="settings-list">
+                    <div class="settings-row">
+                        <div>
+                            <h3>Email address</h3>
+                            <p id="accountEmail">player@royalmind.app</p>
+                        </div>
+                        <button class="settings-secondary" type="button">Update</button>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Change password</h3>
+                            <p>Keep your account protected.</p>
+                        </div>
+                        <button class="settings-secondary" type="button">Reset</button>
+                    </div>
+                    <div class="settings-row">
+                        <div>
+                            <h3>Deactivate account</h3>
+                            <p>Pause your profile and hide your stats.</p>
+                        </div>
+                        <button class="settings-danger" type="button">Deactivate</button>
+                    </div>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <div id="settingsToast" class="settings-toast" role="status" aria-live="polite"></div>
+    <script src="src/settings.js"></script>
+</body>
+</html>

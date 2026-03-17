@@ -12,12 +12,88 @@
             <span class="brand-mark" aria-hidden="true">&#9818;</span>
             <span class="brand-text">RoyalMind</span>
         </div>
-        <a class="game-back-link" href="dashboard.html">Back to Dashboard</a>
+        <nav class="history-nav">
+            <a class="history-nav-link active" href="history.html">Review</a>
+            <a class="history-nav-link" href="dashboard.html">Back to Dashboard</a>
+        </nav>
     </header>
 
     <main class="history-shell">
-        <h1>Your Game History</h1>
-        <div id="historyContainer" class="history-list"></div>
+        <section id="historyOverview" class="history-overview">
+            <div class="history-toolbar">
+                <div class="history-tabs">
+                    <button class="history-tab active" type="button">Recent</button>
+                    <button class="history-tab" type="button">Daily</button>
+                    <button class="history-tab" type="button">Live</button>
+                    <button class="history-tab" type="button">Bot</button>
+                    <button class="history-tab" type="button">Coach</button>
+                </div>
+                <button id="filterToggle" class="history-filter-toggle" type="button">Filters</button>
+            </div>
+
+            <div class="history-layout">
+                <section class="history-table">
+                    <div class="history-table-head">
+                        <span>Game</span>
+                        <span>Result</span>
+                        <span>Moves</span>
+                        <span>Date</span>
+                        <span>Actions</span>
+                    </div>
+                    <div id="historyList" class="history-table-body"></div>
+                </section>
+
+                <aside id="historyFilters" class="history-filters">
+                    <h3>Filter Games</h3>
+                    <label>
+                        Result
+                        <select id="filterResult"></select>
+                    </label>
+                    <label>
+                        Opponent
+                        <input id="filterOpponent" type="text" placeholder="Opponent name" />
+                    </label>
+                    <label>
+                        Minimum Moves
+                        <input id="filterMoves" type="number" min="0" step="1" placeholder="0" />
+                    </label>
+                    <label>
+                        Sort by
+                        <select id="filterSort">
+                            <option value="recent">Most Recent</option>
+                            <option value="oldest">Oldest</option>
+                        </select>
+                    </label>
+                    <div class="history-filter-actions">
+                        <button id="applyFilters" class="history-btn" type="button">Search</button>
+                        <button id="resetFilters" class="history-btn ghost" type="button">Reset</button>
+                    </div>
+                </aside>
+            </div>
+        </section>
+
+        <section id="historyReview" class="history-review hidden">
+            <div class="history-review-head">
+                <button id="backToHistory" class="history-btn ghost" type="button">Back to List</button>
+                <div class="history-review-meta">
+                    <h2 id="reviewTitle">Game</h2>
+                    <p id="reviewDate"></p>
+                </div>
+                <div id="reviewWinner" class="history-winner">Winner</div>
+            </div>
+
+            <div class="history-board-wrap history-review-wrap">
+                <div class="history-board-side">
+                    <div id="reviewBoard" class="history-board"></div>
+                    <div id="reviewControls" class="history-controls"></div>
+                    <div id="reviewMovesNote" class="history-moves-note"></div>
+                </div>
+                <div class="history-moves-panel">
+                    <div class="history-moves-title">Moves</div>
+                    <div id="reviewMovesList" class="history-moves-list"></div>
+                </div>
+            </div>
+        </section>
     </main>
 
     <script src="src/history.js"></script>
