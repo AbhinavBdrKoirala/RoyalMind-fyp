@@ -15,6 +15,24 @@ const countryInput = document.getElementById("country");
 
 let isRegisterMode = false;
 
+function buildStoredUser(user, fallbackEmail) {
+    if (!user || typeof user !== "object") {
+        return {
+            email: fallbackEmail,
+            displayName: fallbackEmail,
+            settings: {}
+        };
+    }
+
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(" ").trim();
+    return {
+        ...user,
+        email: user.email || fallbackEmail,
+        displayName: user.displayName || user.username || fullName || user.email || fallbackEmail,
+        settings: user.settings && typeof user.settings === "object" ? user.settings : {}
+    };
+}
+
 function setMode(registerMode) {
     isRegisterMode = registerMode;
 
@@ -131,8 +149,16 @@ if (loginForm) {
                     return;
                 }
 
+                const storedUser = buildStoredUser(data.user, email);
                 localStorage.setItem("token", data.token);
-                localStorage.setItem("royalmindUser", (data.user && (data.user.username || data.user.email)) || email);
+                localStorage.setItem("royalmindUser", JSON.stringify(storedUser));
+
+                if (storedUser.settings) {
+                    localStorage.setItem("royalmindSettings", JSON.stringify({
+                        displayName: storedUser.displayName,
+                        ...storedUser.settings
+                    }));
+                }
 
                 alert("Login successful!");
 

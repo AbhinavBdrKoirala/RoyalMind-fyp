@@ -669,7 +669,9 @@ body.home-page {
 .settings-danger:focus-visible,
 .settings-select:focus-visible,
 .settings-field input:focus-visible,
-.settings-field select:focus-visible {
+.settings-field select:focus-visible,
+.dashboard-dialog-close:focus-visible,
+.bot-level-card:focus-visible {
     outline: 2px solid #97bf73;
     outline-offset: 2px;
 }
@@ -884,12 +886,108 @@ body.dashboard-page {
 .dashboard-menu button:nth-child(3) { animation: fadeSlideUp 0.55s ease both 0.16s; }
 .dashboard-menu button:nth-child(4) { animation: fadeSlideUp 0.55s ease both 0.2s; }
 .dashboard-menu button:nth-child(5) { animation: fadeSlideUp 0.55s ease both 0.24s; }
+.dashboard-menu button:nth-child(6) { animation: fadeSlideUp 0.55s ease both 0.28s; }
 
 .dashboard-menu .logout-btn {
     margin-top: 6px;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.03));
     color: #f2f7ec;
     border: 1px solid rgba(220, 231, 208, 0.2);
+}
+
+.dashboard-dialog {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    background: rgba(8, 12, 9, 0.76);
+    backdrop-filter: blur(4px);
+    padding: 20px;
+}
+
+.dashboard-dialog.hidden {
+    display: none;
+}
+
+.dashboard-dialog-card {
+    width: min(560px, 100%);
+    border-radius: 18px;
+    padding: 20px;
+    background: rgba(19, 25, 17, 0.96);
+    border: 1px solid rgba(220, 231, 208, 0.1);
+    box-shadow: 0 20px 48px rgba(0, 0, 0, 0.42);
+}
+
+.dashboard-dialog-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.dashboard-dialog-kicker {
+    margin: 0 0 6px;
+    color: #9fc18b;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.dashboard-dialog-head h2 {
+    margin: 0;
+    font-size: clamp(24px, 4vw, 32px);
+}
+
+.dashboard-dialog-close {
+    width: 38px;
+    height: 38px;
+    border: 0;
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 16px;
+    color: #e9f1e3;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.bot-level-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.bot-level-card {
+    width: 100%;
+    border: 1px solid rgba(220, 231, 208, 0.14);
+    border-radius: 14px;
+    padding: 16px;
+    text-align: left;
+    cursor: pointer;
+    color: #eff5ea;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
+    transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+
+.bot-level-card strong,
+.bot-level-card span {
+    display: block;
+}
+
+.bot-level-card strong {
+    margin-bottom: 6px;
+    font-size: 18px;
+}
+
+.bot-level-card span {
+    color: #c3d1ba;
+    font-size: 14px;
+}
+
+.bot-level-card:hover {
+    transform: translateY(-1px);
+    border-color: rgba(151, 191, 115, 0.45);
+    background: linear-gradient(180deg, rgba(151, 191, 115, 0.24), rgba(151, 191, 115, 0.11));
 }
 
 @media (max-width: 900px) {
@@ -1488,14 +1586,15 @@ body.history-page {
 
 body.game-page {
     margin: 0;
-    height: 100vh;
+    min-height: 100vh;
     font-family: "Trebuchet MS", "Segoe UI", sans-serif;
     background:
         radial-gradient(circle at 14% 18%, rgba(111, 154, 83, 0.24), transparent 48%),
         radial-gradient(circle at 88% 84%, rgba(38, 54, 45, 0.5), transparent 50%),
         linear-gradient(180deg, #121914 0%, #0f1411 100%);
     color: #f1f5ec;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .game-header {
@@ -1524,12 +1623,12 @@ body.game-page {
 
 .game-shell {
     width: min(1320px, 96%);
-    height: calc(100vh - 66px);
+    min-height: calc(100vh - 66px);
     margin: 6px auto 8px;
     display: grid;
     grid-template-columns: minmax(0, 1.25fr) 260px;
     gap: 16px;
-    align-items: stretch;
+    align-items: start;
 }
 
 .board-panel,
@@ -1546,7 +1645,7 @@ body.game-page {
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    --board-size: clamp(380px, min(74vw, calc(100vh - 320px)), 760px);
+    --board-size: clamp(360px, min(68vw, calc(100vh - 380px)), 760px);
 }
 
 .board-panel-head {
@@ -1655,7 +1754,7 @@ body.game-page .legal-move-square {
     border: 1px solid rgba(220, 231, 208, 0.12);
     width: 100%;
     box-sizing: border-box;
-    min-height: 64px;
+    min-height: 72px;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -1671,7 +1770,7 @@ body.game-page .legal-move-square {
 }
 
 .captured-pieces {
-    min-height: 26px;
+    min-height: 30px;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -1882,7 +1981,7 @@ body.game-page .promotion-container {
 @media (max-width: 1050px) {
     .game-shell {
         grid-template-columns: 1fr;
-        height: calc(100vh - 66px);
+        min-height: calc(100vh - 66px);
     }
 
     .game-move-panel {
@@ -1894,7 +1993,7 @@ body.game-page .promotion-container {
     }
 
     .board-panel {
-        --board-size: min(90vw, clamp(340px, calc(100vh - 420px), 560px));
+        --board-size: min(90vw, clamp(320px, calc(100vh - 480px), 560px));
     }
 }
 
@@ -1907,7 +2006,7 @@ body.game-page .promotion-container {
 
     .board-panel {
         padding: 10px;
-        --board-size: min(92vw, clamp(280px, calc(100vh - 460px), 460px));
+        --board-size: min(92vw, clamp(260px, calc(100vh - 520px), 460px));
     }
 
     .board-panel-head {

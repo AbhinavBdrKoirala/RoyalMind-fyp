@@ -19,7 +19,7 @@
     <main class="game-shell">
         <section class="board-panel">
             <div class="board-panel-head">
-                <h1>Live Match</h1>
+                <h1 id="matchTitle">Live Match</h1>
                 <p id="currentTurnLabel">White to move</p>
             </div>
             <div class="captured-strip captured-top">
@@ -27,12 +27,12 @@
                 <div id="capturedByWhite" class="captured-pieces"></div>
             </div>
             <div id="blackClockBox" class="clock-box board-clock top">
-                <p>Black</p>
+                <p id="blackPlayerLabel">Black</p>
                 <strong id="blackTimer">10:00</strong>
             </div>
             <div id="chessboard"></div>
             <div id="whiteClockBox" class="clock-box board-clock bottom active">
-                <p>White</p>
+                <p id="whitePlayerLabel">White</p>
                 <strong id="whiteTimer">10:00</strong>
             </div>
             <div class="captured-strip captured-bottom">

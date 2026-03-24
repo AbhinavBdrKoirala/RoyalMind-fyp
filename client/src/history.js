@@ -23,6 +23,25 @@ const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
 let allGames = [];
 let filteredGames = [];
 
+function parseStoredUser() {
+    const raw = localStorage.getItem("royalmindUser");
+    if (!raw) return null;
+
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return raw.includes("@")
+            ? { email: raw, displayName: raw }
+            : { username: raw, displayName: raw };
+    }
+}
+
+function getStoredUserLabel() {
+    const user = parseStoredUser();
+    const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+    return user?.displayName || user?.username || fullName || user?.email || null;
+}
+
 async function fetchGamesFromServer() {
     const token = localStorage.getItem("token");
     if (!token) return null;
@@ -44,8 +63,8 @@ async function fetchGamesFromServer() {
 
 function getLocalGames() {
     const games = JSON.parse(localStorage.getItem("royalmindHistory")) || [];
-    const user = localStorage.getItem("royalmindUser");
-    return user ? games.filter(g => g.user === user) : games;
+    const userLabel = getStoredUserLabel();
+    return userLabel ? games.filter(g => g.user === userLabel) : games;
 }
 
 function normalizeServerGames(games) {

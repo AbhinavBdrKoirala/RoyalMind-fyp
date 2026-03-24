@@ -21,9 +21,13 @@
 
     <main class="dashboard-shell centered-layout">
         <nav class="dashboard-menu centered-menu" aria-label="Dashboard navigation">
-            <button onclick="goTo('game.html')">
+            <button onclick="goTo('game.html?mode=local')">
                 <span class="menu-item-icon" aria-hidden="true">&#9822;</span>
                 <span>Play Game</span>
+            </button>
+            <button id="playBotButton" type="button">
+                <span class="menu-item-icon" aria-hidden="true">&#9820;</span>
+                <span>Play Bot</span>
             </button>
             <button onclick="goTo('settings.html')">
                 <span class="menu-item-icon" aria-hidden="true">&#9881;</span>
@@ -43,6 +47,32 @@
             </button>
         </nav>
     </main>
+
+    <div id="botDialog" class="dashboard-dialog hidden" aria-hidden="true">
+        <div class="dashboard-dialog-card" role="dialog" aria-modal="true" aria-labelledby="botDialogTitle">
+            <div class="dashboard-dialog-head">
+                <div>
+                    <p class="dashboard-dialog-kicker">Solo Match</p>
+                    <h2 id="botDialogTitle">Choose your bot level</h2>
+                </div>
+                <button id="closeBotDialog" class="dashboard-dialog-close" type="button" aria-label="Close bot options">&#10005;</button>
+            </div>
+            <div class="bot-level-grid">
+                <button class="bot-level-card" type="button" data-level="easy">
+                    <strong>Easy</strong>
+                    <span>Relaxed play with simple moves.</span>
+                </button>
+                <button class="bot-level-card" type="button" data-level="medium">
+                    <strong>Medium</strong>
+                    <span>Balanced play with better tactical choices.</span>
+                </button>
+                <button class="bot-level-card" type="button" data-level="hard">
+                    <strong>Hard</strong>
+                    <span>Stronger calculation and sharper replies.</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <script src="src/dashboard.js"></script>
 </body>

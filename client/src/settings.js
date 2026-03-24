@@ -5,6 +5,8 @@ if (!token) {
     window.location.href = "index.html";
 }
 
+const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
+
 const fields = {
     displayName: document.getElementById("displayName"),
     language: document.getElementById("language"),
@@ -53,6 +55,24 @@ const DEFAULTS = {
     privacyHistory: false
 };
 
+function parseStoredUser() {
+    const raw = localStorage.getItem("royalmindUser");
+    if (!raw) return null;
+
+    try {
+        return JSON.parse(raw);
+    } catch {
+        return raw.includes("@")
+            ? { email: raw, displayName: raw, settings: {} }
+            : { username: raw, displayName: raw, settings: {} };
+    }
+}
+
+function storeUser(user) {
+    if (!user || typeof user !== "object") return;
+    localStorage.setItem("royalmindUser", JSON.stringify(user));
+}
+
 function getStoredSettings() {
     try {
         return JSON.parse(localStorage.getItem("royalmindSettings")) || {};
@@ -61,8 +81,31 @@ function getStoredSettings() {
     }
 }
 
-function applySettings(settings) {
-    const next = { ...DEFAULTS, ...settings };
+function getDisplayName(user) {
+    const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+    return user?.displayName || user?.username || fullName || user?.email || DEFAULTS.displayName;
+}
+
+function getProfileMeta(user) {
+    if (user?.username) {
+        return `@${user.username}`;
+    }
+
+    const fullName = [user?.firstName, user?.lastName].filter(Boolean).join(" ").trim();
+    return fullName || "Your RoyalMind profile";
+}
+
+function getUserAwareSettings(user, settings) {
+    return {
+        ...DEFAULTS,
+        ...settings,
+        displayName: getDisplayName(user)
+    };
+}
+
+function applySettings(settings, user = parseStoredUser()) {
+    const next = getUserAwareSettings(user, settings);
+
     if (fields.displayName) fields.displayName.value = next.displayName;
     if (fields.language) fields.language.value = next.language;
     if (fields.timeZone) fields.timeZone.value = next.timeZone;
@@ -82,7 +125,8 @@ function applySettings(settings) {
     if (fields.privacyHistory) fields.privacyHistory.checked = next.privacyHistory;
 
     if (profileName) profileName.textContent = next.displayName || DEFAULTS.displayName;
-    if (profileMeta) profileMeta.textContent = "Rapid 1240 | Blitz 990";
+    if (profileMeta) profileMeta.textContent = getProfileMeta(user);
+    if (accountEmail) accountEmail.textContent = user?.email || "player@royalmind.app";
 }
 
 function readSettings() {
@@ -107,6 +151,34 @@ function readSettings() {
     };
 }
 
+function buildSettingsPayload(settings) {
+    const { displayName, ...rest } = settings;
+    return {
+        displayName,
+        settings: rest
+    };
+}
+
+async function apiFetch(path, options = {}) {
+    for (const base of API_BASES) {
+        try {
+            const response = await fetch(`${base}${path}`, {
+                ...options,
+                headers: {
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                    ...(options.headers || {})
+                }
+            });
+            return response;
+        } catch {
+            // try next base
+        }
+    }
+
+    return null;
+}
+
 function showToast(message) {
     if (!toast) return;
     toast.textContent = message;
@@ -117,11 +189,55 @@ function showToast(message) {
     }, 2400);
 }
 
-function saveSettings() {
+async function saveSettings() {
     const settings = readSettings();
+
     localStorage.setItem("royalmindSettings", JSON.stringify(settings));
     if (profileName) profileName.textContent = settings.displayName;
-    showToast("Settings saved on this device.");
+
+    const response = await apiFetch("/api/auth/settings", {
+        method: "PUT",
+        body: JSON.stringify(buildSettingsPayload(settings))
+    });
+
+    if (!response) {
+        showToast("Saved locally. Backend is unavailable right now.");
+        return;
+    }
+
+    if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem("token");
+        window.location.href = "index.html";
+        return;
+    }
+
+    if (!response.ok) {
+        let message = "Unable to save settings.";
+        try {
+            const data = await response.json();
+            message = data.error || message;
+        } catch {
+            // ignore invalid json
+        }
+        showToast(message);
+        return;
+    }
+
+    const data = await response.json();
+    if (data?.user) {
+        const nextUser = {
+            ...data.user,
+            settings: data.user.settings || {}
+        };
+        storeUser(nextUser);
+        localStorage.setItem("royalmindSettings", JSON.stringify({
+            displayName: nextUser.displayName,
+            ...nextUser.settings
+        }));
+        applySettings(nextUser.settings, nextUser);
+    }
+
+    showToast("Settings saved to your account.");
 }
 
 function bindMenuHighlight() {
@@ -148,22 +264,40 @@ function bindMenuHighlight() {
     panels.forEach(panel => observer.observe(panel));
 }
 
-function hydrateAccountDetails() {
-    const storedUser = localStorage.getItem("royalmindUser");
-    if (profileName && storedUser) {
-        profileName.textContent = storedUser;
-        if (fields.displayName && !fields.displayName.value.trim()) {
-            fields.displayName.value = storedUser;
-        }
+async function hydrateSettings() {
+    const storedUser = parseStoredUser();
+    const storedSettings = getStoredSettings();
+    applySettings(storedSettings, storedUser);
+
+    const response = await apiFetch("/api/auth/me", { method: "GET" });
+    if (!response) return;
+
+    if (response.status === 401 || response.status === 403) {
+        localStorage.removeItem("token");
+        window.location.href = "index.html";
+        return;
     }
 
-    if (accountEmail && storedUser && storedUser.includes("@")) {
-        accountEmail.textContent = storedUser;
-    }
+    if (!response.ok) return;
+
+    const data = await response.json();
+    if (!data?.user) return;
+
+    const user = {
+        ...data.user,
+        settings: data.user.settings || {}
+    };
+
+    storeUser(user);
+    localStorage.setItem("royalmindSettings", JSON.stringify({
+        displayName: user.displayName,
+        ...user.settings
+    }));
+    applySettings(user.settings, user);
 }
 
 saveButton?.addEventListener("click", saveSettings);
 
-applySettings(getStoredSettings());
-hydrateAccountDetails();
+applySettings(getStoredSettings(), parseStoredUser());
 bindMenuHighlight();
+hydrateSettings();
