@@ -240,13 +240,7 @@ function setupReviewBoard(game) {
     };
 
     const applyMove = (move, forward) => {
-        if (forward) {
-            boardState[move.toRow][move.toCol] = move.promotedTo || move.piece;
-            boardState[move.fromRow][move.fromCol] = "";
-        } else {
-            boardState[move.fromRow][move.fromCol] = move.piece;
-            boardState[move.toRow][move.toCol] = move.captured || "";
-        }
+        applyMoveToBoard(boardState, move, forward);
     };
 
     const stopAuto = () => {
@@ -546,11 +540,43 @@ function buildNotation(move, color, inCheck, isMate) {
     return `${pawnPrefix}${pieceLetter}${capture}${to}${promo}${isMate ? "#" : inCheck ? "+" : ""}`;
 }
 
-function applyMoveToBoard(board, move) {
+function applyMoveToBoard(board, move, forward = true) {
     if (!move) return;
-    const piece = move.promotedTo || move.piece;
-    board[move.toRow][move.toCol] = piece;
-    board[move.fromRow][move.fromCol] = "";
+
+    if (forward) {
+        const piece = move.promotedTo || move.piece;
+        board[move.toRow][move.toCol] = piece;
+        board[move.fromRow][move.fromCol] = "";
+
+        if (move.enPassantCapture) {
+            board[move.enPassantCapture.row][move.enPassantCapture.col] = "";
+        }
+
+        if (move.rookMove) {
+            board[move.rookMove.toRow][move.rookMove.toCol] = move.rookMove.piece;
+            board[move.rookMove.fromRow][move.rookMove.fromCol] = "";
+        }
+
+        return;
+    }
+
+    board[move.fromRow][move.fromCol] = move.piece;
+    board[move.toRow][move.toCol] = "";
+
+    if (move.promotedTo) {
+        board[move.fromRow][move.fromCol] = move.piece;
+    }
+
+    if (move.enPassantCapture) {
+        board[move.enPassantCapture.row][move.enPassantCapture.col] = move.enPassantCapture.piece;
+    } else {
+        board[move.toRow][move.toCol] = move.captured || "";
+    }
+
+    if (move.rookMove) {
+        board[move.rookMove.fromRow][move.rookMove.fromCol] = move.rookMove.piece;
+        board[move.rookMove.toRow][move.rookMove.toCol] = "";
+    }
 }
 
 function isInCheck(board, color) {

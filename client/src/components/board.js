@@ -18,6 +18,8 @@ let matchUiInitialized = false;
 let currentGameId = null;
 let remoteSyncFailed = false;
 let gameFinished = false;
+let castlingRights = createInitialCastlingRights();
+let enPassantTarget = null;
 
 const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
 const settingsCache = getStoredSettings();
@@ -316,6 +318,8 @@ function resetGameState(timeInSeconds = 600) {
     currentGameId = null;
     remoteSyncFailed = false;
     gameFinished = false;
+    castlingRights = createInitialCastlingRights();
+    enPassantTarget = null;
     boardState = cloneBoard(initialBoardState);
     whiteTimeLeft = timeInSeconds;
     blackTimeLeft = timeInSeconds;
@@ -403,7 +407,19 @@ function handleSquareClick(square) {
 function tryMove(selected, targetRow, targetCol, options = {}) {
     const { piece, row, col } = selected;
     const { promotionChoice = null, onPromotionResolved = null } = options;
-    const capturedPiece = boardState[targetRow][targetCol];
+    const currentPosition = getCurrentPosition();
+    const specialMeta = getSpecialMoveMetaForBoard(
+        boardState,
+        piece,
+        row,
+        col,
+        targetRow,
+        targetCol,
+        currentPosition
+    );
+    const capturedPiece = specialMeta.enPassantCapture
+        ? specialMeta.enPassantCapture.piece
+        : boardState[targetRow][targetCol];
 
     if (!isValidMove(piece, row, col, targetRow, targetCol)) {
         return { moved: false, awaitingPromotion: false };
@@ -412,6 +428,15 @@ function tryMove(selected, targetRow, targetCol, options = {}) {
     boardState[targetRow][targetCol] = piece;
     boardState[row][col] = "";
 
+    if (specialMeta.enPassantCapture) {
+        boardState[specialMeta.enPassantCapture.row][specialMeta.enPassantCapture.col] = "";
+    }
+
+    if (specialMeta.rookMove) {
+        boardState[specialMeta.rookMove.toRow][specialMeta.rookMove.toCol] = specialMeta.rookMove.piece;
+        boardState[specialMeta.rookMove.fromRow][specialMeta.rookMove.fromCol] = "";
+    }
+
     lastMoveMeta = {
         fromRow: row,
         fromCol: col,
@@ -419,7 +444,10 @@ function tryMove(selected, targetRow, targetCol, options = {}) {
         toCol: targetCol,
         piece,
         captured: capturedPiece || null,
-        promotedTo: null
+        promotedTo: null,
+        castleSide: specialMeta.castleSide || null,
+        rookMove: specialMeta.rookMove || null,
+        enPassantCapture: specialMeta.enPassantCapture || null
     };
 
     if (capturedPiece) {
@@ -429,6 +457,9 @@ function tryMove(selected, targetRow, targetCol, options = {}) {
             capturedByBlack.push(capturedPiece);
         }
     }
+
+    updateCastlingRightsForMove(lastMoveMeta);
+    enPassantTarget = getEnPassantTargetForMove(lastMoveMeta);
 
     const requiresPromotion = (piece === "wp" && targetRow === 0) || (piece === "bp" && targetRow === 7);
     if (!requiresPromotion) {
@@ -641,7 +672,7 @@ function showStatusMessage(message, duration = 1000) {
 }
 
 function hasAnyLegalMove(color) {
-    return generateLegalMovesForState(boardState, color).length > 0;
+    return generateLegalMovesForState(boardState, color, getCurrentPosition()).length > 0;
 }
 
 function showGameOver(winnerColor, reason = "Checkmate") {
@@ -686,7 +717,7 @@ function toAlgebraic(row, col) {
 function finalizeMoveRecord(moveMeta) {
     if (!moveMeta) return;
 
-    const { piece, fromRow, fromCol, toRow, toCol, captured, promotedTo } = moveMeta;
+    const { piece, fromRow, fromCol, toRow, toCol, captured, promotedTo, castleSide, rookMove, enPassantCapture } = moveMeta;
     const moveList = document.getElementById("moveList");
     if (!moveList) return;
 
@@ -733,7 +764,10 @@ function finalizeMoveRecord(moveMeta) {
         toCol,
         piece,
         captured,
-        promotedTo
+        promotedTo,
+        castleSide,
+        rookMove,
+        enPassantCapture
     });
 
     syncRemoteGame();
@@ -873,7 +907,8 @@ function playBotMove() {
 }
 
 function chooseBotMove(level) {
-    const legalMoves = generateLegalMovesForState(boardState, botColor);
+    const position = getCurrentPosition();
+    const legalMoves = generateLegalMovesForState(position.board, botColor, position);
     if (legalMoves.length === 0) return null;
 
     if (level === "easy") {
@@ -885,7 +920,7 @@ function chooseBotMove(level) {
     if (level === "medium") {
         const scoredMoves = legalMoves.map((move) => ({
             move,
-            score: evaluateMoveForBot(move) + (move.captured ? PIECE_VALUES[move.captured[1]] : 0)
+            score: evaluateMoveForBot(move, position) + (move.captured ? PIECE_VALUES[move.captured[1]] : 0)
         }));
 
         scoredMoves.sort((a, b) => b.score - a.score);
@@ -897,8 +932,8 @@ function chooseBotMove(level) {
     let bestMove = legalMoves[0];
 
     for (const move of legalMoves) {
-        const nextBoard = applyMoveToState(boardState, move);
-        const score = minimax(nextBoard, BOT_LEVELS.hard.depth - 1, false, -Infinity, Infinity);
+        const nextPosition = applyMoveToState(position.board, move, position);
+        const score = minimax(nextPosition, BOT_LEVELS.hard.depth - 1, false, -Infinity, Infinity);
         if (score > bestScore) {
             bestScore = score;
             bestMove = move;
@@ -908,24 +943,24 @@ function chooseBotMove(level) {
     return bestMove;
 }
 
-function minimax(state, depth, maximizingPlayer, alpha, beta) {
+function minimax(position, depth, maximizingPlayer, alpha, beta) {
     const sideToMove = maximizingPlayer ? botColor : humanColor;
-    const legalMoves = generateLegalMovesForState(state, sideToMove);
+    const legalMoves = generateLegalMovesForState(position.board, sideToMove, position);
 
     if (depth <= 0 || legalMoves.length === 0) {
         if (legalMoves.length === 0) {
-            if (isKingInCheckOnBoard(state, sideToMove)) {
+            if (isKingInCheckOnBoard(position.board, sideToMove)) {
                 return maximizingPlayer ? -100000 : 100000;
             }
             return 0;
         }
-        return evaluateBoardForBot(state);
+        return evaluateBoardForBot(position);
     }
 
     if (maximizingPlayer) {
         let bestScore = -Infinity;
         for (const move of legalMoves) {
-            const score = minimax(applyMoveToState(state, move), depth - 1, false, alpha, beta);
+            const score = minimax(applyMoveToState(position.board, move, position), depth - 1, false, alpha, beta);
             bestScore = Math.max(bestScore, score);
             alpha = Math.max(alpha, score);
             if (beta <= alpha) break;
@@ -935,7 +970,7 @@ function minimax(state, depth, maximizingPlayer, alpha, beta) {
 
     let bestScore = Infinity;
     for (const move of legalMoves) {
-        const score = minimax(applyMoveToState(state, move), depth - 1, true, alpha, beta);
+        const score = minimax(applyMoveToState(position.board, move, position), depth - 1, true, alpha, beta);
         bestScore = Math.min(bestScore, score);
         beta = Math.min(beta, score);
         if (beta <= alpha) break;
@@ -943,12 +978,13 @@ function minimax(state, depth, maximizingPlayer, alpha, beta) {
     return bestScore;
 }
 
-function evaluateMoveForBot(move) {
-    const nextBoard = applyMoveToState(boardState, move);
-    return evaluateBoardForBot(nextBoard);
+function evaluateMoveForBot(move, position = getCurrentPosition()) {
+    const nextPosition = applyMoveToState(position.board, move, position);
+    return evaluateBoardForBot(nextPosition);
 }
 
-function evaluateBoardForBot(state) {
+function evaluateBoardForBot(position) {
+    const state = position.board;
     let score = 0;
 
     for (let row = 0; row < 8; row += 1) {
@@ -960,13 +996,18 @@ function evaluateBoardForBot(state) {
         }
     }
 
-    const mobility = generateLegalMovesForState(state, botColor).length - generateLegalMovesForState(state, humanColor).length;
+    const mobility =
+        generateLegalMovesForState(state, botColor, position).length -
+        generateLegalMovesForState(state, humanColor, position).length;
     return score + (mobility * 4);
 }
 
 function buildNotation(moveMeta) {
     const { piece, fromRow, toRow, toCol, captured, promotedTo } = moveMeta;
     const isPawn = piece[1] === "p";
+    if (moveMeta.castleSide) {
+        return moveMeta.castleSide === "king" ? "O-O" : "O-O-O";
+    }
     const pieceLetter = isPawn ? "" : piece[1].toUpperCase();
     const captureMark = captured ? "x" : "";
     const targetSquare = toAlgebraic(toRow, toCol);
@@ -1031,6 +1072,29 @@ function cloneBoard(state) {
     return state.map((row) => row.slice());
 }
 
+function cloneCastlingRights(rights = createInitialCastlingRights()) {
+    return JSON.parse(JSON.stringify(rights));
+}
+
+function cloneEnPassantTarget(target) {
+    return target ? { ...target } : null;
+}
+
+function createInitialCastlingRights() {
+    return {
+        white: { kingMoved: false, rookA: false, rookH: false },
+        black: { kingMoved: false, rookA: false, rookH: false }
+    };
+}
+
+function getCurrentPosition() {
+    return {
+        board: boardState,
+        castlingRights: cloneCastlingRights(castlingRights),
+        enPassantTarget: cloneEnPassantTarget(enPassantTarget)
+    };
+}
+
 function findKingOnBoard(state, color) {
     const kingCode = color === "white" ? "wk" : "bk";
     for (let row = 0; row < 8; row += 1) {
@@ -1069,7 +1133,7 @@ function isKingInCheckOnBoard(state, color) {
     return isSquareAttackedOnBoard(state, enemyColor, kingPos.row, kingPos.col);
 }
 
-function isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, skipCheck = false) {
+function isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, skipCheck = false, context = getCurrentPosition()) {
     if (row === targetRow && col === targetCol) return false;
 
     const color = piece.startsWith("w") ? "white" : "black";
@@ -1091,13 +1155,12 @@ function isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, skipCh
                 }
             }
 
-            if (
-                Math.abs(col - targetCol) === 1 &&
-                row + dir === targetRow &&
-                target !== "" &&
-                !target.startsWith(piece[0])
-            ) {
-                valid = true;
+            if (Math.abs(col - targetCol) === 1 && row + dir === targetRow) {
+                if (target && !target.startsWith(piece[0])) {
+                    valid = true;
+                } else if (canCaptureEnPassant(state, piece, row, col, targetRow, targetCol, context)) {
+                    valid = true;
+                }
             }
             break;
         }
@@ -1186,6 +1249,9 @@ function isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, skipCh
             const dr = Math.abs(targetRow - row);
             const dc = Math.abs(targetCol - col);
             valid = dr <= 1 && dc <= 1;
+            if (!valid && dr === 0 && dc === 2 && !skipCheck) {
+                valid = canCastleOnBoard(state, color, targetCol > col ? "king" : "queen", context);
+            }
             break;
         }
 
@@ -1194,10 +1260,25 @@ function isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, skipCh
     }
 
     if (valid && !skipCheck) {
-        const nextBoard = cloneBoard(state);
-        nextBoard[targetRow][targetCol] = piece;
-        nextBoard[row][col] = "";
-        if (isKingInCheckOnBoard(nextBoard, color)) {
+        const specialMeta = getSpecialMoveMetaForBoard(state, piece, row, col, targetRow, targetCol, context);
+        const nextPosition = applyMoveToState(
+            state,
+            {
+                piece,
+                fromRow: row,
+                fromCol: col,
+                toRow: targetRow,
+                toCol: targetCol,
+                captured: specialMeta.enPassantCapture ? specialMeta.enPassantCapture.piece : (state[targetRow][targetCol] || null),
+                promotedTo: null,
+                castleSide: specialMeta.castleSide || null,
+                rookMove: specialMeta.rookMove || null,
+                enPassantCapture: specialMeta.enPassantCapture || null
+            },
+            context
+        );
+
+        if (isKingInCheckOnBoard(nextPosition.board, color)) {
             valid = false;
         }
     }
@@ -1205,7 +1286,7 @@ function isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, skipCh
     return valid;
 }
 
-function generateLegalMovesForState(state, color) {
+function generateLegalMovesForState(state, color, context = getCurrentPosition()) {
     const moves = [];
     for (let row = 0; row < 8; row += 1) {
         for (let col = 0; col < 8; col += 1) {
@@ -1216,8 +1297,11 @@ function generateLegalMovesForState(state, color) {
 
             for (let targetRow = 0; targetRow < 8; targetRow += 1) {
                 for (let targetCol = 0; targetCol < 8; targetCol += 1) {
-                    if (!isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol)) continue;
-                    const captured = state[targetRow][targetCol] || null;
+                    if (!isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, false, context)) continue;
+                    const specialMeta = getSpecialMoveMetaForBoard(state, piece, row, col, targetRow, targetCol, context);
+                    const captured = specialMeta.enPassantCapture
+                        ? specialMeta.enPassantCapture.piece
+                        : (state[targetRow][targetCol] || null);
                     const promotedTo =
                         (piece === "wp" && targetRow === 0) || (piece === "bp" && targetRow === 7)
                             ? defaultPromotionForPiece(piece)
@@ -1230,7 +1314,10 @@ function generateLegalMovesForState(state, color) {
                         toRow: targetRow,
                         toCol: targetCol,
                         captured,
-                        promotedTo
+                        promotedTo,
+                        castleSide: specialMeta.castleSide || null,
+                        rookMove: specialMeta.rookMove || null,
+                        enPassantCapture: specialMeta.enPassantCapture || null
                     });
                 }
             }
@@ -1239,9 +1326,143 @@ function generateLegalMovesForState(state, color) {
     return moves;
 }
 
-function applyMoveToState(state, move) {
+function applyMoveToState(state, move, context = getCurrentPosition()) {
     const nextBoard = cloneBoard(state);
+    const nextRights = cloneCastlingRights(context.castlingRights);
+    const nextEnPassant = cloneEnPassantTarget(context.enPassantTarget);
+
     nextBoard[move.toRow][move.toCol] = move.promotedTo || move.piece;
     nextBoard[move.fromRow][move.fromCol] = "";
-    return nextBoard;
+
+    if (move.enPassantCapture) {
+        nextBoard[move.enPassantCapture.row][move.enPassantCapture.col] = "";
+    }
+
+    if (move.rookMove) {
+        nextBoard[move.rookMove.toRow][move.rookMove.toCol] = move.rookMove.piece;
+        nextBoard[move.rookMove.fromRow][move.rookMove.fromCol] = "";
+    }
+
+    updateCastlingRightsForMove(move, nextRights);
+
+    return {
+        board: nextBoard,
+        castlingRights: nextRights,
+        enPassantTarget: getEnPassantTargetForMove(move, nextEnPassant)
+    };
+}
+
+function canCaptureEnPassant(state, piece, row, col, targetRow, targetCol, context) {
+    const target = context.enPassantTarget;
+    if (!target) return false;
+    return (
+        target.targetRow === targetRow &&
+        target.targetCol === targetCol &&
+        Math.abs(col - targetCol) === 1 &&
+        target.pawnColor !== (piece.startsWith("w") ? "white" : "black") &&
+        state[target.captureRow][target.captureCol] === target.capturedPiece
+    );
+}
+
+function canCastleOnBoard(state, color, side, context) {
+    const rights = context.castlingRights?.[color];
+    if (!rights || rights.kingMoved) return false;
+    if (isKingInCheckOnBoard(state, color)) return false;
+
+    const row = color === "white" ? 7 : 0;
+    const kingPiece = color === "white" ? "wk" : "bk";
+    const rookPiece = color === "white" ? "wr" : "br";
+    const rookCol = side === "king" ? 7 : 0;
+    const pathCols = side === "king" ? [5, 6] : [1, 2, 3];
+    const kingPassCols = side === "king" ? [5, 6] : [3, 2];
+
+    if (state[row][4] !== kingPiece || state[row][rookCol] !== rookPiece) return false;
+    if ((side === "king" && rights.rookH) || (side === "queen" && rights.rookA)) return false;
+    if (pathCols.some((colIndex) => state[row][colIndex] !== "")) return false;
+    if (kingPassCols.some((colIndex) => isSquareAttackedOnBoard(state, color === "white" ? "black" : "white", row, colIndex))) {
+        return false;
+    }
+
+    return true;
+}
+
+function getSpecialMoveMetaForBoard(state, piece, fromRow, fromCol, toRow, toCol, context) {
+    if (piece[1] === "k" && Math.abs(toCol - fromCol) === 2) {
+        const rookFromCol = toCol > fromCol ? 7 : 0;
+        const rookToCol = toCol > fromCol ? 5 : 3;
+        return {
+            castleSide: toCol > fromCol ? "king" : "queen",
+            rookMove: {
+                piece: piece.startsWith("w") ? "wr" : "br",
+                fromRow,
+                fromCol: rookFromCol,
+                toRow: fromRow,
+                toCol: rookToCol
+            },
+            enPassantCapture: null
+        };
+    }
+
+    if (piece[1] === "p" && fromCol !== toCol && state[toRow][toCol] === "" && canCaptureEnPassant(state, piece, fromRow, fromCol, toRow, toCol, context)) {
+        return {
+            castleSide: null,
+            rookMove: null,
+            enPassantCapture: {
+                row: context.enPassantTarget.captureRow,
+                col: context.enPassantTarget.captureCol,
+                piece: context.enPassantTarget.capturedPiece
+            }
+        };
+    }
+
+    return {
+        castleSide: null,
+        rookMove: null,
+        enPassantCapture: null
+    };
+}
+
+function updateCastlingRightsForMove(move, rights = castlingRights) {
+    const movingColor = move.piece.startsWith("w") ? "white" : "black";
+    const opponentColor = movingColor === "white" ? "black" : "white";
+
+    if (move.piece[1] === "k") {
+        rights[movingColor].kingMoved = true;
+    }
+
+    if (move.piece[1] === "r") {
+        if (move.fromRow === (movingColor === "white" ? 7 : 0) && move.fromCol === 0) {
+            rights[movingColor].rookA = true;
+        }
+        if (move.fromRow === (movingColor === "white" ? 7 : 0) && move.fromCol === 7) {
+            rights[movingColor].rookH = true;
+        }
+    }
+
+    if (move.captured === (opponentColor === "white" ? "wr" : "br")) {
+        const captureRow = move.enPassantCapture ? move.enPassantCapture.row : move.toRow;
+        const captureCol = move.enPassantCapture ? move.enPassantCapture.col : move.toCol;
+        if (captureRow === (opponentColor === "white" ? 7 : 0) && captureCol === 0) {
+            rights[opponentColor].rookA = true;
+        }
+        if (captureRow === (opponentColor === "white" ? 7 : 0) && captureCol === 7) {
+            rights[opponentColor].rookH = true;
+        }
+    }
+}
+
+function getEnPassantTargetForMove(move) {
+    if (move.piece[1] !== "p") return null;
+    if (Math.abs(move.toRow - move.fromRow) !== 2) return null;
+
+    const direction = move.piece.startsWith("w") ? -1 : 1;
+    const targetRow = move.fromRow + direction;
+    return {
+        targetRow,
+        targetCol: move.fromCol,
+        captureRow: move.toRow,
+        captureCol: move.toCol,
+        pawnColor: move.piece.startsWith("w") ? "white" : "black",
+        capturedPiece: move.piece
+    };
 }
