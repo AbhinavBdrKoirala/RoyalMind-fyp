@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RoyalMind Chess Game</title>
+    <link rel="icon" type="image/png" href="src/assets/pieces/main.png?v=2">
+    <link rel="apple-touch-icon" href="src/assets/pieces/main.png?v=2">
     <link rel="stylesheet" href="src/styles/main.css">
 </head>
 <body class="game-page">
@@ -20,24 +22,35 @@
         <section class="board-panel">
             <div class="board-panel-head">
                 <h1 id="matchTitle">Live Match</h1>
-                <p id="currentTurnLabel">White to move</p>
+                <div class="board-panel-actions">
+                    <p id="currentTurnLabel">White to move</p>
+                    <button id="drawToggle" class="game-control-btn subtle" type="button">Draw</button>
+                    <button id="resignToggle" class="game-control-btn danger" type="button">Resign</button>
+                    <button id="fullscreenToggle" class="game-control-btn" type="button" aria-pressed="false">Fullscreen</button>
+                </div>
             </div>
-            <div class="captured-strip captured-top">
-                <p>Captured by White</p>
-                <div id="capturedByWhite" class="captured-pieces"></div>
-            </div>
-            <div id="blackClockBox" class="clock-box board-clock top">
-                <p id="blackPlayerLabel">Black</p>
-                <strong id="blackTimer">10:00</strong>
-            </div>
-            <div id="chessboard"></div>
-            <div id="whiteClockBox" class="clock-box board-clock bottom active">
-                <p id="whitePlayerLabel">White</p>
-                <strong id="whiteTimer">10:00</strong>
-            </div>
-            <div class="captured-strip captured-bottom">
-                <p>Captured by Black</p>
-                <div id="capturedByBlack" class="captured-pieces"></div>
+            <div class="board-stage">
+                <aside class="capture-pocket capture-pocket-left" aria-label="Pieces captured by Black">
+                    <p>Captured by Black</p>
+                    <div id="capturedByBlack" class="captured-pieces captured-pieces-pocket"></div>
+                </aside>
+
+                <div class="board-center">
+                    <div id="blackClockBox" class="clock-box board-clock top">
+                        <p id="blackPlayerLabel">Black</p>
+                        <strong id="blackTimer">10:00</strong>
+                    </div>
+                    <div id="chessboard"></div>
+                    <div id="whiteClockBox" class="clock-box board-clock bottom active">
+                        <p id="whitePlayerLabel">White</p>
+                        <strong id="whiteTimer">10:00</strong>
+                    </div>
+                </div>
+
+                <aside class="capture-pocket capture-pocket-right" aria-label="Pieces captured by White">
+                    <p>Captured by White</p>
+                    <div id="capturedByWhite" class="captured-pieces captured-pieces-pocket"></div>
+                </aside>
             </div>
         </section>
 

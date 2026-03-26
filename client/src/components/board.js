@@ -7,6 +7,7 @@ let capturedByWhite = [];
 let capturedByBlack = [];
 let moveSequence = [];
 let lastMoveMeta = null;
+let lastCompletedMove = null;
 let pendingPromotionMeta = null;
 let timerInterval = null;
 let botMoveTimeout = null;
@@ -145,6 +146,13 @@ export function createBoard() {
                 square.classList.add("check");
             }
 
+            if (shouldHighlightLastMove() && isLastMoveSquare(row, col)) {
+                square.classList.add("last-move");
+                if (lastCompletedMove?.toRow === row && lastCompletedMove?.toCol === col) {
+                    square.classList.add("last-move-target");
+                }
+            }
+
             boardElement.appendChild(square);
         }
     }
@@ -160,6 +168,9 @@ function initializeGameUi() {
     const timeControlSelect = document.getElementById("timeControlSelect");
     const customMinutes = document.getElementById("customMinutes");
     const setTimeControlBtn = document.getElementById("setTimeControlBtn");
+    const fullscreenToggle = document.getElementById("fullscreenToggle");
+    const drawToggle = document.getElementById("drawToggle");
+    const resignToggle = document.getElementById("resignToggle");
 
     if (timeControlSelect && customMinutes) {
         const preferredPreset = SETTINGS_TIME_TO_PRESET[settingsCache.defaultTime];
@@ -193,6 +204,21 @@ function initializeGameUi() {
             resetGameState(newTimeInSeconds);
         });
     }
+
+    if (fullscreenToggle) {
+        fullscreenToggle.addEventListener("click", toggleFullscreenMode);
+    }
+
+    if (drawToggle) {
+        drawToggle.addEventListener("click", handleDrawRequest);
+    }
+
+    if (resignToggle) {
+        resignToggle.addEventListener("click", handleResign);
+    }
+
+    document.addEventListener("fullscreenchange", syncFullscreenUi);
+    syncFullscreenUi();
 
     updateTimerDisplay();
     uiInitialized = true;
@@ -314,6 +340,7 @@ function resetGameState(timeInSeconds = 600) {
     capturedByBlack = [];
     moveSequence = [];
     lastMoveMeta = null;
+    lastCompletedMove = null;
     pendingPromotionMeta = null;
     currentGameId = null;
     remoteSyncFailed = false;
@@ -770,6 +797,19 @@ function finalizeMoveRecord(moveMeta) {
         enPassantCapture
     });
 
+    lastCompletedMove = {
+        fromRow,
+        fromCol,
+        toRow,
+        toCol,
+        piece,
+        captured,
+        promotedTo,
+        castleSide,
+        rookMove,
+        enPassantCapture
+    };
+
     syncRemoteGame();
 }
 
@@ -1014,6 +1054,63 @@ function buildNotation(moveMeta) {
     const promotionMark = promotedTo ? `=${promotedTo[1].toUpperCase()}` : "";
     const pawnPrefix = isPawn && captured ? toAlgebraic(fromRow, moveMeta.fromCol)[0] : "";
     return `${pawnPrefix}${pieceLetter}${captureMark}${targetSquare}${promotionMark}`;
+}
+
+function isLastMoveSquare(row, col) {
+    if (!lastCompletedMove) return false;
+    return (
+        (lastCompletedMove.fromRow === row && lastCompletedMove.fromCol === col) ||
+        (lastCompletedMove.toRow === row && lastCompletedMove.toCol === col)
+    );
+}
+
+function shouldHighlightLastMove() {
+    if (!lastCompletedMove) return false;
+    if (gameMode !== "bot") return true;
+    return lastCompletedMove.piece?.startsWith("b");
+}
+
+async function toggleFullscreenMode() {
+    try {
+        if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+    } catch (error) {
+        showStatusMessage("Fullscreen is not available here.", 1400);
+    }
+}
+
+function syncFullscreenUi() {
+    const fullscreenToggle = document.getElementById("fullscreenToggle");
+    const isFullscreen = !!document.fullscreenElement;
+
+    document.body.classList.toggle("is-fullscreen", isFullscreen);
+
+    if (fullscreenToggle) {
+        fullscreenToggle.textContent = isFullscreen ? "Exit Fullscreen" : "Fullscreen";
+        fullscreenToggle.setAttribute("aria-pressed", String(isFullscreen));
+    }
+}
+
+function handleDrawRequest() {
+    if (gameFinished) return;
+    const confirmed = confirm(
+        gameMode === "bot"
+            ? "End this game as a draw?"
+            : "Declare this game a draw?"
+    );
+    if (!confirmed) return;
+    showDraw(gameMode === "bot" ? "Draw" : "Draw agreed");
+}
+
+function handleResign() {
+    if (gameFinished) return;
+    const confirmed = confirm("Resign the current game?");
+    if (!confirmed) return;
+    const winner = currentTurn === "white" ? "Black" : "White";
+    showGameOver(winner, "Resignation");
 }
 
 function parseStoredUser() {
