@@ -1,3 +1,5 @@
+import { createStockfishCoach } from "./coach-engine.js";
+
 let selectedSquare = null;
 let selectedPiece = null;
 let currentTurn = "white";
@@ -21,10 +23,23 @@ let remoteSyncFailed = false;
 let gameFinished = false;
 let castlingRights = createInitialCastlingRights();
 let enPassantTarget = null;
+let coachUiInitialized = false;
+let coachEngine = null;
+let coachAnalysisTimer = null;
+let coachCurrentAnalysis = null;
+let coachCurrentFen = "";
+let queuedMoveReview = null;
+let pendingMoveReview = null;
+let coachLastReview = null;
+let coachEnabled = false;
 
 const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
 const settingsCache = getStoredSettings();
 const storedUser = parseStoredUser();
+const appUi = window.RoyalMindUI || {
+    notify: () => {},
+    confirm: async () => false
+};
 
 const BOT_LEVELS = {
     easy: { label: "Easy Bot", depth: 1, thinkTime: 420 },
@@ -95,6 +110,11 @@ const pieceMap = {
     bk: "black_king.png"
 };
 
+const COACH_DEPTH = 11;
+const COACH_MULTI_PV = 3;
+const COACH_STORAGE_KEY = "royalmindCoachEnabled";
+coachEnabled = getStoredCoachPreference();
+
 export function createBoard() {
     initializeGameUi();
     initializeMatchUi();
@@ -104,7 +124,7 @@ export function createBoard() {
 
     boardElement.innerHTML = "";
 
-    const perspective = gameMode === "bot" ? humanColor : currentTurn;
+    const perspective = humanColor || "white";
     const files = perspective === "white"
         ? ["a", "b", "c", "d", "e", "f", "g", "h"]
         : ["h", "g", "f", "e", "d", "c", "b", "a"];
@@ -160,10 +180,16 @@ export function createBoard() {
     updateTurnLabel();
     renderCapturedPieces();
     updateTimerDisplay();
+    renderCoachPanel();
+    if (coachUiInitialized && coachEnabled && !gameFinished) {
+        scheduleCoachAnalysis();
+    }
 }
 
 function initializeGameUi() {
     if (uiInitialized) return;
+
+    initializeCoachUi();
 
     const timeControlSelect = document.getElementById("timeControlSelect");
     const customMinutes = document.getElementById("customMinutes");
@@ -191,13 +217,19 @@ function initializeGameUi() {
     }
 
     if (setTimeControlBtn) {
-        setTimeControlBtn.addEventListener("click", () => {
+        setTimeControlBtn.addEventListener("click", async () => {
             const newTimeInSeconds = getTimeFromUi();
             if (!newTimeInSeconds) return;
 
             const hasGameProgress = moveHistory.length > 0 || capturedByWhite.length > 0 || capturedByBlack.length > 0;
             if (hasGameProgress) {
-                const confirmReset = confirm("Changing time control will restart the current game. Continue?");
+                const confirmReset = await appUi.confirm({
+                    title: "Restart this game?",
+                    message: "Changing the time control will restart the current match and clear the current board state.",
+                    confirmLabel: "Restart game",
+                    cancelLabel: "Keep playing",
+                    tone: "warning"
+                });
                 if (!confirmReset) return;
             }
 
@@ -218,6 +250,7 @@ function initializeGameUi() {
     }
 
     document.addEventListener("fullscreenchange", syncFullscreenUi);
+    window.addEventListener("beforeunload", () => coachEngine?.dispose(), { once: true });
     syncFullscreenUi();
 
     updateTimerDisplay();
@@ -247,6 +280,72 @@ function initializeMatchUi() {
     matchUiInitialized = true;
 }
 
+function initializeCoachUi() {
+    if (coachUiInitialized) return;
+
+    const toggleButton = document.getElementById("coachToggleBtn");
+    const refreshButton = document.getElementById("coachRefreshBtn");
+    if (toggleButton) {
+        toggleButton.addEventListener("click", () => {
+            setCoachEnabled(!coachEnabled);
+        });
+    }
+    if (refreshButton) {
+        refreshButton.addEventListener("click", () => {
+            if (!coachEnabled) {
+                appUi.notify("Enable analysis first to use Stockfish review.", {
+                    title: "Analysis is off",
+                    tone: "warning"
+                });
+                return;
+            }
+            scheduleCoachAnalysis({ immediate: true, force: true });
+        });
+    }
+
+    renderCoachPanel();
+
+    coachUiInitialized = true;
+}
+
+function ensureCoachEngine() {
+    if (coachEngine) return coachEngine;
+
+    try {
+        coachEngine = createStockfishCoach({
+            onStatus: ({ text, tone }) => updateCoachStatus(text, tone)
+        });
+        updateCoachStatus("Starting engine", "pending");
+    } catch {
+        coachEngine = null;
+        updateCoachStatus("Engine unavailable", "danger");
+    }
+
+    return coachEngine;
+}
+
+function setCoachEnabled(nextValue) {
+    coachEnabled = Boolean(nextValue);
+    localStorage.setItem(COACH_STORAGE_KEY, JSON.stringify(coachEnabled));
+
+    clearCoachAnalysisTimer();
+
+    if (!coachEnabled) {
+        coachEngine?.stop();
+        coachCurrentAnalysis = null;
+        coachCurrentFen = "";
+        queuedMoveReview = null;
+        pendingMoveReview = null;
+        coachLastReview = null;
+        renderCoachPanel();
+        return;
+    }
+
+    ensureCoachEngine();
+    renderCoachPanel();
+    scheduleCoachAnalysis({ immediate: true, force: true });
+}
+
 function getTimeFromUi() {
     const timeControlSelect = document.getElementById("timeControlSelect");
     const customMinutes = document.getElementById("customMinutes");
@@ -256,7 +355,10 @@ function getTimeFromUi() {
     if (timeControlSelect.value === "custom") {
         const minutes = Number(customMinutes ? customMinutes.value : 0);
         if (!Number.isFinite(minutes) || minutes < 1 || minutes > 180) {
-            alert("Custom time must be between 1 and 180 minutes.");
+            appUi.notify("Custom time must be between 1 and 180 minutes.", {
+                title: "Choose a valid time",
+                tone: "warning"
+            });
             return null;
         }
         return Math.floor(minutes * 60);
@@ -330,6 +432,8 @@ function stopTimer() {
 function resetGameState(timeInSeconds = 600) {
     stopTimer();
     clearBotTurn();
+    clearCoachAnalysisTimer();
+    coachEngine?.stop();
 
     currentTurn = "white";
     selectedSquare = null;
@@ -347,6 +451,11 @@ function resetGameState(timeInSeconds = 600) {
     gameFinished = false;
     castlingRights = createInitialCastlingRights();
     enPassantTarget = null;
+    coachCurrentAnalysis = null;
+    coachCurrentFen = "";
+    queuedMoveReview = null;
+    pendingMoveReview = null;
+    coachLastReview = null;
     boardState = cloneBoard(initialBoardState);
     whiteTimeLeft = timeInSeconds;
     blackTimeLeft = timeInSeconds;
@@ -411,6 +520,9 @@ function handleSquareClick(square) {
     }
 
     const moverColor = currentTurn;
+    const preMoveAnalysis = coachEnabled && coachCurrentAnalysis && coachCurrentAnalysis.fen === buildFenFromCurrentState()
+        ? coachCurrentAnalysis
+        : null;
     const moveResult = tryMove(selectedPiece, row, col, {
         promotionChoice: shouldAutoPromote(selectedPiece.piece) ? defaultPromotionForPiece(selectedPiece.piece) : null,
         onPromotionResolved: () => finishTurnAfterSuccessfulMove(moverColor)
@@ -426,9 +538,14 @@ function handleSquareClick(square) {
     clearSelection();
 
     if (!moveResult.awaitingPromotion) {
+        queueMoveReview(preMoveAnalysis, moverColor);
+        attachQueuedMoveReview(lastMoveMeta);
         finalizeMoveRecord(lastMoveMeta);
         finishTurnAfterSuccessfulMove(moverColor);
+        return;
     }
+
+    queueMoveReview(preMoveAnalysis, moverColor);
 }
 
 function tryMove(selected, targetRow, targetCol, options = {}) {
@@ -509,6 +626,7 @@ function tryMove(selected, targetRow, targetCol, options = {}) {
         if (pendingPromotionMeta) {
             pendingPromotionMeta.promotedTo = promoted;
             lastMoveMeta = { ...pendingPromotionMeta };
+            attachQueuedMoveReview(lastMoveMeta);
             finalizeMoveRecord(pendingPromotionMeta);
             pendingPromotionMeta = null;
         }
@@ -627,20 +745,6 @@ function renderCapturedPieces() {
         img.alt = piece;
         blackContainer.appendChild(img);
     });
-
-    if (capturedByWhite.length === 0) {
-        const empty = document.createElement("span");
-        empty.className = "captured-empty";
-        empty.textContent = "No captures yet";
-        whiteContainer.appendChild(empty);
-    }
-
-    if (capturedByBlack.length === 0) {
-        const empty = document.createElement("span");
-        empty.className = "captured-empty";
-        empty.textContent = "No captures yet";
-        blackContainer.appendChild(empty);
-    }
 }
 
 function showPromotionUI(color, callback) {
@@ -698,6 +802,513 @@ function showStatusMessage(message, duration = 1000) {
     }, duration);
 }
 
+function updateCoachStatus(text, tone = "idle") {
+    const badge = document.getElementById("coachStatusBadge");
+    if (!badge) return;
+
+    badge.textContent = text;
+    badge.className = `coach-status-badge tone-${tone}`;
+}
+
+function renderCoachPanel() {
+    document.body.classList.toggle("analysis-enabled", coachEnabled);
+
+    const toggleButton = document.getElementById("coachToggleBtn");
+    const refreshButton = document.getElementById("coachRefreshBtn");
+    const bestMoveElement = document.getElementById("coachBestMove");
+    const bestLineElement = document.getElementById("coachBestLine");
+    const evalElement = document.getElementById("coachEval");
+    const topMovesElement = document.getElementById("coachTopMoves");
+    const turnHintElement = document.getElementById("coachTurnHint");
+    const reviewBadge = document.getElementById("coachReviewBadge");
+    const feedbackElement = document.getElementById("coachFeedbackText");
+
+    if (!bestMoveElement || !bestLineElement || !evalElement || !topMovesElement || !turnHintElement || !reviewBadge || !feedbackElement) {
+        return;
+    }
+
+    if (toggleButton) {
+        toggleButton.textContent = coachEnabled ? "Disable analysis" : "Enable analysis";
+        toggleButton.setAttribute("aria-pressed", String(coachEnabled));
+    }
+
+    if (refreshButton) {
+        refreshButton.disabled = !coachEnabled;
+    }
+
+    if (!coachEnabled) {
+        updateCoachStatus("Analysis off", "idle");
+        bestMoveElement.textContent = "Disabled";
+        bestLineElement.textContent = "Stockfish stays off during normal play. Enable analysis only when you want to review a position.";
+        evalElement.textContent = "Eval: --";
+        turnHintElement.textContent = `${currentTurn === "white" ? "White" : "Black"} to move`;
+        topMovesElement.innerHTML = '<p class="coach-supporting-text">Turn analysis on to ask for the best move in the current position.</p>';
+        reviewBadge.textContent = "Off";
+        reviewBadge.className = "coach-review-badge tone-neutral";
+        feedbackElement.textContent = "This keeps bot and live games free from engine help until you choose to review.";
+        return;
+    }
+
+    if (coachCurrentAnalysis?.lines?.length) {
+        const bestLine = coachCurrentAnalysis.lines[0];
+        bestMoveElement.textContent = formatEngineMove(bestLine?.pv?.[0] || coachCurrentAnalysis.bestMove);
+        bestLineElement.textContent = describePreferredIdea(bestLine?.pv?.[0] || coachCurrentAnalysis.bestMove, coachCurrentAnalysis.fen);
+        evalElement.textContent = `Eval: ${formatEvaluationLabel(bestLine, coachCurrentAnalysis.sideToMove)}`;
+        turnHintElement.textContent = `${coachCurrentAnalysis.sideToMove === "w" ? "White" : "Black"} to move`;
+        renderCoachTopMoves(topMovesElement, coachCurrentAnalysis);
+    } else {
+        bestMoveElement.textContent = "Waiting...";
+        bestLineElement.textContent = "The engine will suggest the strongest continuation for the side to move.";
+        evalElement.textContent = "Eval: --";
+        turnHintElement.textContent = `${currentTurn === "white" ? "White" : "Black"} to move`;
+        topMovesElement.innerHTML = '<p class="coach-supporting-text">Analysis lines will appear here once the engine finishes.</p>';
+    }
+
+    const review = coachLastReview || {
+        label: "Opening",
+        tone: "neutral",
+        text: "Make a move and the engine will explain whether it was best, solid, or a missed opportunity."
+    };
+
+    reviewBadge.textContent = review.label;
+    reviewBadge.className = `coach-review-badge tone-${review.tone}`;
+    feedbackElement.textContent = review.text;
+}
+
+function renderCoachTopMoves(container, analysis) {
+    container.innerHTML = "";
+
+    analysis.lines.forEach((line, index) => {
+        const item = document.createElement("div");
+        item.className = `coach-top-line${index === 0 ? " is-best" : ""}`;
+
+        const head = document.createElement("div");
+        head.className = "coach-top-line-head";
+
+        const move = document.createElement("strong");
+        move.textContent = `${index + 1}. ${formatEngineMove(line.pv?.[0] || null)}`;
+
+        const score = document.createElement("span");
+        score.className = "coach-line-score";
+        score.textContent = formatEvaluationLabel(line, analysis.sideToMove);
+
+        const pv = document.createElement("div");
+        pv.className = "coach-line-pv";
+        pv.textContent = (line.pv || []).slice(0, 4).map((moveCode) => formatEngineMove(moveCode)).join("  ");
+
+        head.appendChild(move);
+        head.appendChild(score);
+        item.appendChild(head);
+        item.appendChild(pv);
+        container.appendChild(item);
+    });
+}
+
+function clearCoachAnalysisTimer() {
+    if (coachAnalysisTimer) {
+        clearTimeout(coachAnalysisTimer);
+        coachAnalysisTimer = null;
+    }
+}
+
+function scheduleCoachAnalysis({ immediate = false, force = false } = {}) {
+    if (!coachEnabled || gameFinished) return;
+
+    ensureCoachEngine();
+    if (!coachEngine) return;
+
+    const fen = buildFenFromCurrentState();
+    if (!force && fen === coachCurrentFen) {
+        renderCoachPanel();
+        return;
+    }
+
+    clearCoachAnalysisTimer();
+    const runAnalysis = () => analyzeCurrentPosition(fen);
+
+    if (immediate) {
+        runAnalysis();
+        return;
+    }
+
+    coachAnalysisTimer = setTimeout(runAnalysis, 120);
+}
+
+async function analyzeCurrentPosition(fen) {
+    if (!coachEnabled || gameFinished) return;
+
+    ensureCoachEngine();
+    if (!coachEngine) return;
+
+    coachCurrentFen = fen;
+
+    try {
+        const analysis = await coachEngine.analyze({
+            fen,
+            depth: COACH_DEPTH,
+            multiPv: COACH_MULTI_PV
+        });
+
+        if (!analysis || analysis.fen !== coachCurrentFen) {
+            return;
+        }
+
+        coachCurrentAnalysis = analysis;
+        resolvePendingMoveReview(analysis);
+        renderCoachPanel();
+    } catch (error) {
+        if (error?.message === "Analysis superseded" || error?.message === "Analysis stopped") {
+            return;
+        }
+
+        updateCoachStatus("Engine unavailable", "danger");
+        coachLastReview = {
+            label: "Offline",
+            tone: "mistake",
+            text: "Stockfish could not analyze this position right now."
+        };
+        renderCoachPanel();
+    }
+}
+
+function queueMoveReview(preMoveAnalysis, moverColor) {
+    if (!coachEnabled) {
+        queuedMoveReview = null;
+        return;
+    }
+
+    queuedMoveReview = preMoveAnalysis
+        ? { preMoveAnalysis, moverColor }
+        : null;
+}
+
+function attachQueuedMoveReview(moveMeta) {
+    if (!queuedMoveReview || !moveMeta) return;
+
+    pendingMoveReview = {
+        ...queuedMoveReview,
+        playedMoveUci: buildMoveUci(moveMeta),
+        playedNotation: buildNotation(moveMeta),
+        playedPiece: moveMeta.piece
+    };
+
+    queuedMoveReview = null;
+}
+
+function resolvePendingMoveReview(postMoveAnalysis) {
+    if (!coachEnabled) {
+        pendingMoveReview = null;
+        return;
+    }
+
+    if (!pendingMoveReview || !postMoveAnalysis) return;
+
+    const review = buildMoveReview(pendingMoveReview, postMoveAnalysis);
+    if (review) {
+        coachLastReview = review;
+    }
+    pendingMoveReview = null;
+}
+
+function buildMoveReview(preMoveContext, postMoveAnalysis) {
+    const beforeLine = preMoveContext.preMoveAnalysis?.lines?.[0];
+    const afterLine = postMoveAnalysis?.lines?.[0];
+    if (!beforeLine || !afterLine) return null;
+
+    const bestMove = beforeLine.pv?.[0] || preMoveContext.preMoveAnalysis.bestMove;
+    const playedMove = preMoveContext.playedMoveUci;
+    const moverPerspectiveBefore = toMoverPerspectiveScore(
+        scoreLineToWhiteCentipawns(beforeLine, preMoveContext.preMoveAnalysis.sideToMove),
+        preMoveContext.moverColor
+    );
+    const moverPerspectiveAfter = toMoverPerspectiveScore(
+        scoreLineToWhiteCentipawns(afterLine, postMoveAnalysis.sideToMove),
+        preMoveContext.moverColor
+    );
+    const centipawnLoss = Math.max(0, Math.round(moverPerspectiveBefore - moverPerspectiveAfter));
+    const quality = classifyMoveQuality(playedMove, bestMove, centipawnLoss);
+    const preferredIdea = describePreferredIdea(bestMove, preMoveContext.preMoveAnalysis.fen);
+    const playedIdea = describePlayedMove(preMoveContext.playedPiece, preMoveContext.playedMoveUci);
+
+    return {
+        label: quality.label,
+        tone: quality.tone,
+        text: buildReviewText({
+            quality,
+            playedNotation: preMoveContext.playedNotation,
+            playedMove,
+            bestMove,
+            centipawnLoss,
+            preferredIdea,
+            playedIdea,
+            postMoveAnalysis
+        })
+    };
+}
+
+function buildReviewText({ quality, playedNotation, playedMove, bestMove, centipawnLoss, preferredIdea, playedIdea, postMoveAnalysis }) {
+    const notation = playedNotation || formatEngineMove(playedMove);
+    const bestLabel = formatEngineMove(bestMove);
+    const afterLine = postMoveAnalysis?.lines?.[0];
+    const opponentMate = afterLine?.scoreType === "mate" && afterLine.scoreValue > 0;
+
+    if (playedMove === bestMove) {
+        return `${notation} matches the engine's top choice. ${preferredIdea}`;
+    }
+
+    if (opponentMate) {
+        return `${notation} allows a forcing mating attack. The engine preferred ${bestLabel}. ${preferredIdea}`;
+    }
+
+    if (quality.tone === "good" || quality.tone === "excellent") {
+        return `${notation} is fully playable. ${playedIdea} The engine still preferred ${bestLabel}. ${preferredIdea}`;
+    }
+
+    if (quality.tone === "inaccuracy") {
+        return `${notation} keeps the game going, but it gives up about ${centipawnLoss} centipawns. The engine preferred ${bestLabel}. ${preferredIdea}`;
+    }
+
+    if (quality.tone === "mistake" || quality.tone === "blunder") {
+        return `${notation} drops the position noticeably. ${playedIdea} Better was ${bestLabel}. ${preferredIdea}`;
+    }
+
+    return `${notation} was not the engine's first choice. Better was ${bestLabel}. ${preferredIdea}`;
+}
+
+function classifyMoveQuality(playedMove, bestMove, centipawnLoss) {
+    if (playedMove === bestMove || centipawnLoss <= 20) {
+        return { label: "Best", tone: "best" };
+    }
+    if (centipawnLoss <= 60) {
+        return { label: "Excellent", tone: "excellent" };
+    }
+    if (centipawnLoss <= 120) {
+        return { label: "Good", tone: "good" };
+    }
+    if (centipawnLoss <= 220) {
+        return { label: "Inaccuracy", tone: "inaccuracy" };
+    }
+    if (centipawnLoss <= 450) {
+        return { label: "Mistake", tone: "mistake" };
+    }
+    return { label: "Blunder", tone: "blunder" };
+}
+
+function describePreferredIdea(moveUci, fen) {
+    const parsed = parseUciMove(moveUci);
+    if (!parsed) return "It keeps the position under the best control.";
+
+    const state = boardFromFen(fen);
+    const piece = state?.[parsed.fromRow]?.[parsed.fromCol] || "";
+    const isCapture = Boolean(state?.[parsed.toRow]?.[parsed.toCol]);
+
+    if (piece[1] === "k" && Math.abs(parsed.toCol - parsed.fromCol) === 2) {
+        return "It castles, improving king safety and bringing the rook into play.";
+    }
+
+    if (piece[1] === "n" || piece[1] === "b") {
+        return "It develops a minor piece and improves activity.";
+    }
+
+    if (piece[1] === "p" && ["d", "e"].includes(moveUci[0]) && ["4", "5"].includes(moveUci[3])) {
+        return "It fights for the center and opens lines for the other pieces.";
+    }
+
+    if (isCapture) {
+        return "It wins material or removes an important defender.";
+    }
+
+    if (piece[1] === "r" || piece[1] === "q") {
+        return "It increases pressure on key files, diagonals, or weak squares.";
+    }
+
+    return "It keeps the position under the best control.";
+}
+
+function describePlayedMove(piece, moveUci) {
+    if (!piece || !moveUci) return "It changes the position, but the engine saw a stronger continuation.";
+
+    const parsedMove = parseUciMove(moveUci);
+
+    if (piece[1] === "k" && parsedMove && Math.abs(parsedMove.toCol - parsedMove.fromCol) === 2) {
+        return "Castling is usually healthy for king safety,";
+    }
+
+    if (piece[1] === "p") {
+        return "Pawn moves are permanent,";
+    }
+
+    if (piece[1] === "q") {
+        return "Queen moves can lose time early,";
+    }
+
+    if (piece[1] === "n" || piece[1] === "b") {
+        return "Piece activity matters a lot here,";
+    }
+
+    return "It changes the balance of the position,";
+}
+
+function formatEvaluationLabel(line, sideToMove) {
+    if (!line) return "--";
+
+    const whiteScore = scoreLineToWhiteCentipawns(line, sideToMove);
+    if (line.scoreType === "mate") {
+        const winner = whiteScore > 0 ? "White" : "Black";
+        return `${winner} mate in ${Math.abs(line.scoreValue)}`;
+    }
+
+    const advantage = Math.abs(whiteScore / 100).toFixed(1);
+    return `${whiteScore >= 0 ? "White" : "Black"} +${advantage}`;
+}
+
+function scoreLineToWhiteCentipawns(line, sideToMove) {
+    if (!line) return 0;
+
+    if (line.scoreType === "mate") {
+        const mateValue = 100000 - (Math.abs(line.scoreValue) * 1000);
+        const signedMate = line.scoreValue < 0 ? -mateValue : mateValue;
+        return sideToMove === "w" ? signedMate : -signedMate;
+    }
+
+    return sideToMove === "w" ? line.scoreValue : -line.scoreValue;
+}
+
+function toMoverPerspectiveScore(whiteScore, moverColor) {
+    return moverColor === "white" ? whiteScore : -whiteScore;
+}
+
+function buildMoveUci(moveMeta) {
+    if (!moveMeta) return "";
+
+    const from = toAlgebraic(moveMeta.fromRow, moveMeta.fromCol);
+    const to = toAlgebraic(moveMeta.toRow, moveMeta.toCol);
+    const promotion = moveMeta.promotedTo ? moveMeta.promotedTo[1] : "";
+    return `${from}${to}${promotion}`;
+}
+
+function formatEngineMove(moveUci) {
+    const parsed = parseUciMove(moveUci);
+    if (!parsed) return "--";
+
+    return `${toAlgebraic(parsed.fromRow, parsed.fromCol)}-${toAlgebraic(parsed.toRow, parsed.toCol)}${parsed.promotion ? `=${parsed.promotion.toUpperCase()}` : ""}`;
+}
+
+function parseUciMove(moveUci) {
+    if (!moveUci || moveUci.length < 4) return null;
+
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const fromCol = files.indexOf(moveUci[0]);
+    const toCol = files.indexOf(moveUci[2]);
+    const fromRank = Number(moveUci[1]);
+    const toRank = Number(moveUci[3]);
+    if (fromCol < 0 || toCol < 0 || Number.isNaN(fromRank) || Number.isNaN(toRank)) return null;
+
+    return {
+        fromRow: 8 - fromRank,
+        fromCol,
+        toRow: 8 - toRank,
+        toCol,
+        promotion: moveUci[4] || ""
+    };
+}
+
+function buildFenFromCurrentState() {
+    const boardFen = boardState.map((row) => {
+        let empty = 0;
+        let output = "";
+
+        row.forEach((piece) => {
+            if (!piece) {
+                empty += 1;
+                return;
+            }
+
+            if (empty > 0) {
+                output += String(empty);
+                empty = 0;
+            }
+
+            const letter = piece[1];
+            output += piece.startsWith("w") ? letter.toUpperCase() : letter;
+        });
+
+        if (empty > 0) {
+            output += String(empty);
+        }
+
+        return output;
+    }).join("/");
+
+    const activeColor = currentTurn === "white" ? "w" : "b";
+    const castlingFen = getCastlingFen();
+    const enPassantFen = getEnPassantFen();
+    const halfmoveClock = String(getHalfmoveClock());
+    const fullmoveNumber = String(Math.floor(moveSequence.length / 2) + 1);
+
+    return `${boardFen} ${activeColor} ${castlingFen} ${enPassantFen} ${halfmoveClock} ${fullmoveNumber}`;
+}
+
+function getCastlingFen() {
+    let value = "";
+
+    if (!castlingRights.white.kingMoved && !castlingRights.white.rookH && boardState[7][4] === "wk" && boardState[7][7] === "wr") {
+        value += "K";
+    }
+    if (!castlingRights.white.kingMoved && !castlingRights.white.rookA && boardState[7][4] === "wk" && boardState[7][0] === "wr") {
+        value += "Q";
+    }
+    if (!castlingRights.black.kingMoved && !castlingRights.black.rookH && boardState[0][4] === "bk" && boardState[0][7] === "br") {
+        value += "k";
+    }
+    if (!castlingRights.black.kingMoved && !castlingRights.black.rookA && boardState[0][4] === "bk" && boardState[0][0] === "br") {
+        value += "q";
+    }
+
+    return value || "-";
+}
+
+function getEnPassantFen() {
+    if (!enPassantTarget) return "-";
+    return toAlgebraic(enPassantTarget.targetRow, enPassantTarget.targetCol);
+}
+
+function getHalfmoveClock() {
+    let count = 0;
+
+    for (let index = moveSequence.length - 1; index >= 0; index -= 1) {
+        const move = moveSequence[index];
+        if (!move) break;
+        if (move.piece?.[1] === "p" || move.captured) {
+            break;
+        }
+        count += 1;
+    }
+
+    return count;
+}
+
+function boardFromFen(fen) {
+    const boardToken = fen?.split(" ")[0];
+    if (!boardToken) return null;
+
+    return boardToken.split("/").map((rank) => {
+        const row = [];
+        rank.split("").forEach((char) => {
+            if (/\d/.test(char)) {
+                for (let index = 0; index < Number(char); index += 1) {
+                    row.push("");
+                }
+                return;
+            }
+
+            const color = char === char.toUpperCase() ? "w" : "b";
+            row.push(`${color}${char.toLowerCase()}`);
+        });
+        return row;
+    });
+}
+
 function hasAnyLegalMove(color) {
     return generateLegalMovesForState(boardState, color, getCurrentPosition()).length > 0;
 }
@@ -706,6 +1317,8 @@ function showGameOver(winnerColor, reason = "Checkmate") {
     gameFinished = true;
     stopTimer();
     clearBotTurn();
+    clearCoachAnalysisTimer();
+    coachEngine?.stop();
 
     const overlay = document.getElementById("gameOverlay");
     const text = document.getElementById("overlayText");
@@ -723,6 +1336,8 @@ function showDraw(reason = "Draw") {
     gameFinished = true;
     stopTimer();
     clearBotTurn();
+    clearCoachAnalysisTimer();
+    coachEngine?.stop();
 
     const overlay = document.getElementById("gameOverlay");
     const text = document.getElementById("overlayText");
@@ -928,6 +1543,9 @@ function playBotMove() {
     }
 
     const moverColor = currentTurn;
+    const preMoveAnalysis = coachEnabled && coachCurrentAnalysis && coachCurrentAnalysis.fen === buildFenFromCurrentState()
+        ? coachCurrentAnalysis
+        : null;
     const moveResult = tryMove(
         { piece: move.piece, row: move.fromRow, col: move.fromCol },
         move.toRow,
@@ -941,9 +1559,14 @@ function playBotMove() {
     if (!moveResult.moved) return;
 
     if (!moveResult.awaitingPromotion) {
+        queueMoveReview(preMoveAnalysis, moverColor);
+        attachQueuedMoveReview(lastMoveMeta);
         finalizeMoveRecord(lastMoveMeta);
         finishTurnAfterSuccessfulMove(moverColor);
+        return;
     }
+
+    queueMoveReview(preMoveAnalysis, moverColor);
 }
 
 function chooseBotMove(level) {
@@ -1094,20 +1717,30 @@ function syncFullscreenUi() {
     }
 }
 
-function handleDrawRequest() {
+async function handleDrawRequest() {
     if (gameFinished) return;
-    const confirmed = confirm(
-        gameMode === "bot"
-            ? "End this game as a draw?"
-            : "Declare this game a draw?"
-    );
+    const confirmed = await appUi.confirm({
+        title: gameMode === "bot" ? "End the bot match?" : "Declare a draw?",
+        message: gameMode === "bot"
+            ? "This will end the current bot match as a draw."
+            : "This will finish the current match and mark it as a draw.",
+        confirmLabel: "Confirm draw",
+        cancelLabel: "Keep playing",
+        tone: "warning"
+    });
     if (!confirmed) return;
     showDraw(gameMode === "bot" ? "Draw" : "Draw agreed");
 }
 
-function handleResign() {
+async function handleResign() {
     if (gameFinished) return;
-    const confirmed = confirm("Resign the current game?");
+    const confirmed = await appUi.confirm({
+        title: "Resign this game?",
+        message: "You can start a new match anytime, but this game will end immediately as a resignation.",
+        confirmLabel: "Resign game",
+        cancelLabel: "Keep playing",
+        tone: "danger"
+    });
     if (!confirmed) return;
     const winner = currentTurn === "white" ? "Black" : "White";
     showGameOver(winner, "Resignation");
@@ -1137,6 +1770,14 @@ function getStoredSettings() {
 function getStoredUserLabel() {
     const fullName = [storedUser?.firstName, storedUser?.lastName].filter(Boolean).join(" ").trim();
     return storedUser?.displayName || storedUser?.username || fullName || storedUser?.email || null;
+}
+
+function getStoredCoachPreference() {
+    try {
+        return JSON.parse(localStorage.getItem(COACH_STORAGE_KEY)) === true;
+    } catch {
+        return false;
+    }
 }
 
 function shouldShowCoordinates() {

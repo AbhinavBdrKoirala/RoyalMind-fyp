@@ -12,6 +12,10 @@ const lastNameInput = document.getElementById("lastName");
 const usernameInput = document.getElementById("username");
 const phoneInput = document.getElementById("phone");
 const countryInput = document.getElementById("country");
+const appUi = window.RoyalMindUI || {
+    notify: () => {},
+    confirm: async () => false
+};
 
 let isRegisterMode = false;
 
@@ -102,17 +106,26 @@ if (loginForm) {
             const phone = phoneInput ? phoneInput.value.trim() : "";
 
             if (password.length < 8) {
-                alert("Password must be at least 8 characters long.");
+                appUi.notify("Password must be at least 8 characters long.", {
+                    title: "Check your password",
+                    tone: "warning"
+                });
                 return;
             }
 
             if (password !== confirmPassword) {
-                alert("Passwords do not match.");
+                appUi.notify("The password and confirmation do not match yet.", {
+                    title: "Passwords do not match",
+                    tone: "warning"
+                });
                 return;
             }
 
             if (!/^[+]?[0-9()\-\s]{7,20}$/.test(phone)) {
-                alert("Please enter a valid phone number.");
+                appUi.notify("Please enter a valid phone number.", {
+                    title: "Phone number needed",
+                    tone: "warning"
+                });
                 return;
             }
         }
@@ -143,7 +156,10 @@ if (loginForm) {
 
             if (response.ok) {
                 if (isRegisterMode) {
-                    alert("Registration successful. Please log in.");
+                    appUi.notify("Your account has been created. Log in to start playing.", {
+                        title: "Registration successful",
+                        tone: "success"
+                    });
                     loginForm.reset();
                     setMode(false);
                     return;
@@ -160,23 +176,37 @@ if (loginForm) {
                     }));
                 }
 
-                alert("Login successful!");
+                appUi.notify("Welcome back. Taking you to your dashboard.", {
+                    title: "Login successful",
+                    tone: "success",
+                    duration: 900
+                });
 
-                window.location.href = "dashboard.html";
+                setTimeout(() => {
+                    window.location.href = "dashboard.html";
+                }, 650);
             } else {
                 if (!isRegisterMode) {
-                    const wantsRegister = confirm((data.error || "Login failed.") + " No account found? Register now?");
-                    if (wantsRegister) {
-                        setMode(true);
-                    }
+                    appUi.notify(data.error || "Login failed.", {
+                        title: "Could not log in",
+                        tone: "error",
+                        duration: 3600
+                    });
                 } else {
-                    alert(data.error || "Registration failed");
+                    appUi.notify(data.error || "Registration failed.", {
+                        title: "Could not register",
+                        tone: "error"
+                    });
                 }
             }
 
         } catch (error) {
             console.error(error);
-            alert("Cannot connect to server. Please make sure backend is running on port 7000.");
+            appUi.notify("Cannot connect to the server right now. Please make sure the backend is running on port 7000.", {
+                title: "Connection problem",
+                tone: "error",
+                duration: 4200
+            });
         }
     });
 }

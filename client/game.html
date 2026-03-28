@@ -30,52 +30,97 @@
                 </div>
             </div>
             <div class="board-stage">
-                <aside class="capture-pocket capture-pocket-left" aria-label="Pieces captured by Black">
-                    <p>Captured by Black</p>
-                    <div id="capturedByBlack" class="captured-pieces captured-pieces-pocket"></div>
-                </aside>
-
                 <div class="board-center">
                     <div id="blackClockBox" class="clock-box board-clock top">
-                        <p id="blackPlayerLabel">Black</p>
+                        <div class="board-player-meta">
+                            <p id="blackPlayerLabel">Black</p>
+                            <div id="capturedByBlack" class="board-captured-strip"></div>
+                        </div>
                         <strong id="blackTimer">10:00</strong>
                     </div>
                     <div id="chessboard"></div>
                     <div id="whiteClockBox" class="clock-box board-clock bottom active">
-                        <p id="whitePlayerLabel">White</p>
+                        <div class="board-player-meta">
+                            <p id="whitePlayerLabel">White</p>
+                            <div id="capturedByWhite" class="board-captured-strip"></div>
+                        </div>
                         <strong id="whiteTimer">10:00</strong>
                     </div>
                 </div>
-
-                <aside class="capture-pocket capture-pocket-right" aria-label="Pieces captured by White">
-                    <p>Captured by White</p>
-                    <div id="capturedByWhite" class="captured-pieces captured-pieces-pocket"></div>
-                </aside>
             </div>
         </section>
 
-        <aside id="moveTracker" class="move-tracker game-move-panel">
-            <div class="time-control-panel">
-                <label for="timeControlSelect">Time Control</label>
-                <div class="time-control-row">
-                    <select id="timeControlSelect">
-                        <option value="bullet-1">Bullet 1+0</option>
-                        <option value="blitz-3">Blitz 3+0</option>
-                        <option value="blitz-5">Blitz 5+0</option>
-                        <option value="rapid-10" selected>Rapid 10+0</option>
-                        <option value="rapid-15">Rapid 15+0</option>
-                        <option value="classical-30">Classical 30+0</option>
-                        <option value="classical-60">Classical 60+0</option>
-                        <option value="custom">Custom</option>
-                    </select>
-                    <input id="customMinutes" type="number" min="1" max="180" step="1" value="10" aria-label="Custom minutes" />
-                    <button id="setTimeControlBtn" type="button">Set</button>
+        <section class="game-sidebar-shell">
+            <aside id="moveTracker" class="move-tracker game-move-panel game-move-list-panel">
+                <div class="game-side-head">
+                    <div>
+                        <p class="coach-kicker">Game Review</p>
+                    </div>
+                    <div class="coach-panel-actions">
+                        <button id="coachToggleBtn" class="game-control-btn subtle coach-refresh-btn" type="button" aria-pressed="false">Enable analysis</button>
+                    </div>
                 </div>
-            </div>
 
-            <h2>Moves</h2>
-            <div id="moveList" class="move-list"></div>
-        </aside>
+                <div class="time-control-panel">
+                    <label for="timeControlSelect">Time Control</label>
+                    <div class="time-control-row">
+                        <select id="timeControlSelect">
+                            <option value="bullet-1">Bullet 1+0</option>
+                            <option value="blitz-3">Blitz 3+0</option>
+                            <option value="blitz-5">Blitz 5+0</option>
+                            <option value="rapid-10" selected>Rapid 10+0</option>
+                            <option value="rapid-15">Rapid 15+0</option>
+                            <option value="classical-30">Classical 30+0</option>
+                            <option value="classical-60">Classical 60+0</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                        <input id="customMinutes" type="number" min="1" max="180" step="1" value="10" aria-label="Custom minutes" />
+                        <button id="setTimeControlBtn" type="button">Set</button>
+                    </div>
+                </div>
+
+                <div class="history-moves-title">Moves</div>
+                <div id="moveList" class="move-list"></div>
+            </aside>
+
+            <aside class="coach-panel coach-side-panel" aria-labelledby="coachPanelTitle">
+                <div class="coach-panel-head">
+                    <div>
+                        <p class="coach-kicker">Learn With Stockfish</p>
+                        <h2 id="coachPanelTitle">Analysis</h2>
+                    </div>
+                </div>
+
+                <div class="coach-meta-row">
+                    <span id="coachStatusBadge" class="coach-status-badge tone-pending">Starting engine</span>
+                    <span id="coachEval" class="coach-eval">Eval: --</span>
+                </div>
+
+                <div class="coach-card coach-best-card">
+                    <p class="coach-label">Best move now</p>
+                    <strong id="coachBestMove">Waiting...</strong>
+                    <p id="coachBestLine" class="coach-supporting-text">The engine will suggest the strongest continuation for the side to move.</p>
+                </div>
+
+                <div class="coach-card coach-feedback-card">
+                    <div class="coach-feedback-head">
+                        <span class="coach-label">Last move review</span>
+                        <span id="coachReviewBadge" class="coach-review-badge tone-neutral">Opening</span>
+                    </div>
+                    <p id="coachFeedbackText" class="coach-feedback-text">Make a move and the engine will explain whether it was best, solid, or a missed opportunity.</p>
+                </div>
+
+                <div class="coach-card coach-lines-card">
+                    <div class="coach-lines-head">
+                        <span class="coach-label">Top choices</span>
+                        <span id="coachTurnHint" class="coach-turn-hint">White to move</span>
+                    </div>
+                    <div id="coachTopMoves" class="coach-top-moves">
+                        <p class="coach-supporting-text">Analysis lines will appear here once the engine finishes.</p>
+                    </div>
+                </div>
+            </aside>
+        </section>
     </main>
 
     <div id="statusMessage" class="status-message"></div>
@@ -98,6 +143,7 @@
         </div>
     </div>
 
+    <script src="src/ui.js"></script>
     <script type="module" src="src/main.js"></script>
 
 </body>

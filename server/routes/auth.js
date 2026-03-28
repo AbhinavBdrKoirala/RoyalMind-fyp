@@ -3,40 +3,16 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const pool = require('../db');
 const authenticateToken = require('../middleware/authMiddleware');
+const { getJwtSecret } = require('../utils/jwt');
+const {
+    sanitizeSettings,
+    validateLoginPayload,
+    validateRegisterPayload,
+    validateSettingsPayload
+} = require('../utils/validation');
 
 const router = express.Router();
-
-const JWT_SECRET = "royalmind_secret_key";
 let userSchemaEnsured = false;
-
-const SETTINGS_KEYS = [
-    "language",
-    "timeZone",
-    "autoQueen",
-    "showLegal",
-    "moveConfirm",
-    "defaultTime",
-    "boardTheme",
-    "pieceStyle",
-    "boardCoordinates",
-    "animatePieces",
-    "notifyGameStart",
-    "notifyChallenges",
-    "notifySounds",
-    "privacyOnline",
-    "privacyDM",
-    "privacyHistory"
-];
-
-function sanitizeSettings(input) {
-    const safeInput = input && typeof input === "object" ? input : {};
-    return SETTINGS_KEYS.reduce((accumulator, key) => {
-        if (typeof safeInput[key] !== "undefined") {
-            accumulator[key] = safeInput[key];
-        }
-        return accumulator;
-    }, {});
-}
 
 function getDisplayName(row) {
     const fullName = [row.first_name, row.last_name].filter(Boolean).join(" ").trim();
@@ -44,6 +20,8 @@ function getDisplayName(row) {
 }
 
 function buildUserPayload(row) {
+    const settingsResult = sanitizeSettings(row.settings || {});
+
     return {
         id: row.id,
         email: row.email,
@@ -51,7 +29,7 @@ function buildUserPayload(row) {
         firstName: row.first_name,
         lastName: row.last_name,
         displayName: getDisplayName(row),
-        settings: sanitizeSettings(row.settings || {})
+        settings: settingsResult.ok ? settingsResult.value : {}
     };
 }
 
@@ -102,51 +80,40 @@ async function ensureUserColumns() {
 
 // REGISTER
 router.post('/register', async (req, res) => {
-    const { firstName, lastName, username, phone, country, email, password } = req.body;
-
     try {
-        const safeFirstName = String(firstName || "").trim();
-        const safeLastName = String(lastName || "").trim();
-        const safeUsername = String(username || "").trim();
-        const safePhone = String(phone || "").trim();
-        const safeCountry = String(country || "").trim();
-        const safeEmail = String(email || "").trim().toLowerCase();
-        const safePassword = String(password || "");
-        const safeDisplayName = safeUsername || `${safeFirstName} ${safeLastName}`.trim() || safeEmail;
-
-        if (!safeFirstName || !safeLastName || !safeUsername || !safePhone || !safeCountry || !safeEmail || !safePassword) {
-            return res.status(400).json({ error: "Please fill all required fields" });
+        const validation = validateRegisterPayload(req.body);
+        if (!validation.ok) {
+            return res.status(400).json({ error: validation.error });
         }
 
-        if (safePassword.length < 8) {
-            return res.status(400).json({ error: "Password must be at least 8 characters long" });
-        }
-
-        if (!/^[+]?[0-9()\-\s]{7,20}$/.test(safePhone)) {
-            return res.status(400).json({ error: "Invalid phone number format" });
-        }
-
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(safeEmail)) {
-            return res.status(400).json({ error: "Invalid email format" });
-        }
+        const {
+            firstName,
+            lastName,
+            username,
+            phone,
+            country,
+            email,
+            password,
+            displayName
+        } = validation.value;
 
         await ensureUserColumns();
 
         const existingUser = await pool.query(
             'SELECT id FROM users WHERE email = $1 OR username = $2',
-            [safeEmail, safeUsername]
+            [email, username]
         );
 
         if (existingUser.rows.length > 0) {
             return res.status(400).json({ error: "Email or username already exists" });
         }
 
-        const hashedPassword = await bcrypt.hash(safePassword, 10);
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         await pool.query(
             `INSERT INTO users (first_name, last_name, username, phone, country, email, password, display_name, settings)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)`,
-            [safeFirstName, safeLastName, safeUsername, safePhone, safeCountry, safeEmail, hashedPassword, safeDisplayName, JSON.stringify({})]
+            [firstName, lastName, username, phone, country, email, hashedPassword, displayName, JSON.stringify({})]
         );
 
         res.status(201).json({ message: "User registered successfully" });
@@ -168,9 +135,14 @@ router.post('/register', async (req, res) => {
 
 // LOGIN
 router.post('/login', async (req, res) => {
-    const { email, password } = req.body;
-    
     try {
+        const validation = validateLoginPayload(req.body);
+        if (!validation.ok) {
+            return res.status(400).json({ error: validation.error });
+        }
+
+        const { email, password } = validation.value;
+
         await ensureUserColumns();
 
         const user = await pool.query(
@@ -190,7 +162,7 @@ router.post('/login', async (req, res) => {
 
         const token = jwt.sign(
             { id: user.rows[0].id },
-            JWT_SECRET,
+            getJwtSecret(),
             { expiresIn: '1h' }
         );
 
@@ -229,8 +201,13 @@ router.put('/settings', authenticateToken, async (req, res) => {
     try {
         await ensureUserColumns();
 
-        const requestedDisplayName = String(req.body?.displayName || "").trim();
-        const requestedSettings = sanitizeSettings(req.body?.settings);
+        const validation = validateSettingsPayload(req.body);
+        if (!validation.ok) {
+            return res.status(400).json({ error: validation.error });
+        }
+
+        const requestedDisplayName = validation.value.displayName;
+        const requestedSettings = validation.value.settings;
 
         const existing = await pool.query(
             'SELECT * FROM users WHERE id = $1',
@@ -243,8 +220,9 @@ router.put('/settings', authenticateToken, async (req, res) => {
 
         const currentUser = existing.rows[0];
         const nextDisplayName = requestedDisplayName || getDisplayName(currentUser);
+        const currentSettings = sanitizeSettings(currentUser.settings || {});
         const nextSettings = {
-            ...sanitizeSettings(currentUser.settings || {}),
+            ...(currentSettings.ok ? currentSettings.value : {}),
             ...requestedSettings
         };
 

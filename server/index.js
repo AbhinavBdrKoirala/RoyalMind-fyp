@@ -1,11 +1,12 @@
 const express = require('express');
 console.log("INDEX FILE LOADED");
-const authenticateToken = require('./middleware/authMiddleware');
 const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '.env'), override: true });
 const cors = require('cors');
 const app = express();
+const authenticateToken = require('./middleware/authMiddleware');
+const { getJwtSecret } = require('./utils/jwt');
 
 const authRoutes = require('./routes/auth');
 const pool = require('./db');
@@ -19,6 +20,8 @@ app.use(cors());
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
+
+getJwtSecret();
 
 pool.query('SELECT 1')
     .then(() => console.log('Database connection OK'))

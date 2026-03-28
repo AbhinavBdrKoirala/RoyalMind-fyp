@@ -2,6 +2,11 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const authenticateToken = require("../middleware/authMiddleware");
+const {
+    validateGameSavePayload,
+    validateGameStartPayload,
+    validateGameUpdatePayload
+} = require("../utils/validation");
 
 let gamesSchemaEnsured = false;
 
@@ -35,8 +40,14 @@ async function ensureGamesTable() {
 
 // Start game (create record)
 router.post("/start", authenticateToken, async (req, res) => {
-    const { opponent, moves } = req.body || {};
+    const validation = validateGameStartPayload(req.body);
     const userId = req.user.id;
+
+    if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
+    }
+
+    const { opponent, moves } = validation.value;
 
     try {
         await ensureGamesTable();
@@ -65,11 +76,13 @@ router.post("/start", authenticateToken, async (req, res) => {
 router.patch("/:id", authenticateToken, async (req, res) => {
     const userId = req.user.id;
     const gameId = Number(req.params.id);
-    const { moves, result, status, opponent } = req.body || {};
+    const validation = validateGameUpdatePayload(gameId, req.body);
 
-    if (!Number.isFinite(gameId)) {
-        return res.status(400).json({ error: "Invalid game id" });
+    if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
     }
+
+    const { moves, result, status, opponent } = validation.value;
 
     try {
         await ensureGamesTable();
@@ -107,8 +120,14 @@ router.patch("/:id", authenticateToken, async (req, res) => {
 
 // Save game
 router.post("/save", authenticateToken, async (req, res) => {
-    const { opponent, result, moves } = req.body;
+    const validation = validateGameSavePayload(req.body);
     const userId = req.user.id;
+
+    if (!validation.ok) {
+        return res.status(400).json({ error: validation.error });
+    }
+
+    const { opponent, result, moves } = validation.value;
 
     try {
         await ensureGamesTable();

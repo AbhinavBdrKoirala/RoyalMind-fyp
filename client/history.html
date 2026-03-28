@@ -86,18 +86,63 @@
 
             <div class="history-board-wrap history-review-wrap">
                 <div class="history-board-side">
+                    <div class="clock-box history-player-bar">
+                        <div class="board-player-meta">
+                            <p id="reviewBlackLabel">Black</p>
+                            <div id="reviewCapturedTop" class="board-captured-strip"></div>
+                        </div>
+                    </div>
                     <div id="reviewBoard" class="history-board"></div>
+                    <div class="clock-box history-player-bar">
+                        <div class="board-player-meta">
+                            <p id="reviewWhiteLabel">White</p>
+                            <div id="reviewCapturedBottom" class="board-captured-strip"></div>
+                        </div>
+                    </div>
                     <div id="reviewControls" class="history-controls"></div>
                     <div id="reviewMovesNote" class="history-moves-note"></div>
                 </div>
-                <div class="history-moves-panel">
-                    <div class="history-moves-title">Moves</div>
-                    <div id="reviewMovesList" class="history-moves-list"></div>
+                <div class="history-review-side">
+                    <aside id="historyAnalysisPanel" class="coach-panel history-analysis-panel">
+                        <div class="coach-panel-head">
+                            <div>
+                                <p class="coach-kicker">Stockfish Review</p>
+                                <h2>Analysis</h2>
+                            </div>
+                        </div>
+
+                        <div class="coach-meta-row">
+                            <span id="historyCoachStatus" class="coach-status-badge tone-pending">Starting engine</span>
+                            <span id="historyCoachEval" class="coach-eval">Eval: --</span>
+                        </div>
+
+                        <div class="coach-card coach-best-card">
+                            <p class="coach-label">Best move here</p>
+                            <strong id="historyCoachBestMove">Waiting...</strong>
+                            <p id="historyCoachBestLine" class="coach-supporting-text">Step through the game and Stockfish will update for the current position.</p>
+                        </div>
+
+                        <div class="coach-card coach-lines-card">
+                            <div class="coach-lines-head">
+                                <span class="coach-label">Top choices</span>
+                                <span id="historyCoachTurnHint" class="coach-turn-hint">White to move</span>
+                            </div>
+                            <div id="historyCoachTopMoves" class="coach-top-moves">
+                                <p class="coach-supporting-text">Analysis lines will appear here for the selected review position.</p>
+                            </div>
+                        </div>
+                    </aside>
+
+                    <div class="history-moves-panel">
+                        <div class="history-moves-title">Moves</div>
+                        <div id="reviewMovesList" class="history-moves-list"></div>
+                    </div>
                 </div>
             </div>
         </section>
     </main>
 
-    <script src="src/history.js"></script>
+    <script src="src/ui.js"></script>
+    <script type="module" src="src/history.js"></script>
 </body>
 </html>

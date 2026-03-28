@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-
-const JWT_SECRET = "royalmind_secret_key";
+const { getJwtSecret } = require('../utils/jwt');
 
 function authenticateToken(req, res, next) {
     const authHeader = req.headers['authorization'];
@@ -11,10 +10,13 @@ function authenticateToken(req, res, next) {
     }
 
     try {
-        const decoded = jwt.verify(token, JWT_SECRET);
+        const decoded = jwt.verify(token, getJwtSecret());
         req.user = decoded;
         next();
     } catch (error) {
+        if (error.message === "JWT_SECRET is not configured") {
+            return res.status(500).json({ error: "Authentication is not configured on the server." });
+        }
         return res.status(403).json({ error: "Invalid or expired token." });
     }
 }

@@ -1,3 +1,5 @@
+import { createStockfishCoach } from "./components/coach-engine.js";
+
 const overviewSection = document.getElementById("historyOverview");
 const reviewSection = document.getElementById("historyReview");
 const listContainer = document.getElementById("historyList");
@@ -18,10 +20,20 @@ const reviewBoard = document.getElementById("reviewBoard");
 const reviewControls = document.getElementById("reviewControls");
 const reviewMovesList = document.getElementById("reviewMovesList");
 const reviewMovesNote = document.getElementById("reviewMovesNote");
+const reviewCapturedTop = document.getElementById("reviewCapturedTop");
+const reviewCapturedBottom = document.getElementById("reviewCapturedBottom");
+const historyCoachStatus = document.getElementById("historyCoachStatus");
+const historyCoachEval = document.getElementById("historyCoachEval");
+const historyCoachBestMove = document.getElementById("historyCoachBestMove");
+const historyCoachBestLine = document.getElementById("historyCoachBestLine");
+const historyCoachTurnHint = document.getElementById("historyCoachTurnHint");
+const historyCoachTopMoves = document.getElementById("historyCoachTopMoves");
 
 const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
 let allGames = [];
 let filteredGames = [];
+let historyCoach = null;
+let historyCoachRequestId = 0;
 
 function parseStoredUser() {
     const raw = localStorage.getItem("royalmindUser");
@@ -220,13 +232,14 @@ function setupReviewBoard(game) {
     if (!moves) {
         reviewMovesNote.textContent = "Replay not available for this game.";
         renderBoard(reviewBoard, getInitialBoard());
+        renderReviewCaptures({ capturedByWhite: [], capturedByBlack: [] });
+        renderHistoryCoachLoading("Replay not available");
         reviewMovesList.innerHTML = "<div class=\"history-move-row empty\">No moves available.</div>";
         reviewMovesList.onclick = null;
         return;
     }
 
     let currentIndex = 0;
-    let boardState = getInitialBoard();
     let autoTimer = null;
     let autoPlaying = false;
     const speedInput = reviewControls.querySelector(".history-speed-input");
@@ -239,8 +252,13 @@ function setupReviewBoard(game) {
         stepLabel.textContent = `${currentIndex} / ${moves.length}`;
     };
 
-    const applyMove = (move, forward) => {
-        applyMoveToBoard(boardState, move, forward);
+    const renderCurrentReviewState = () => {
+        const position = buildReviewPosition(moves, currentIndex);
+        renderBoard(reviewBoard, position.board);
+        renderReviewCaptures(position);
+        updateStep();
+        renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+        analyzeHistoryPosition(position);
     };
 
     const stopAuto = () => {
@@ -263,11 +281,8 @@ function setupReviewBoard(game) {
                 stopAuto();
                 return;
             }
-            applyMove(moves[currentIndex], true);
             currentIndex += 1;
-            renderBoard(reviewBoard, boardState);
-            updateStep();
-            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+            renderCurrentReviewState();
         }, delay);
     };
 
@@ -277,42 +292,27 @@ function setupReviewBoard(game) {
 
         if (action === "start") {
             stopAuto();
-            boardState = getInitialBoard();
             currentIndex = 0;
-            renderBoard(reviewBoard, boardState);
-            updateStep();
-            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+            renderCurrentReviewState();
             return;
         }
 
         if (action === "next" && currentIndex < moves.length) {
             stopAuto();
-            applyMove(moves[currentIndex], true);
             currentIndex += 1;
-            renderBoard(reviewBoard, boardState);
-            updateStep();
-            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+            renderCurrentReviewState();
         }
 
         if (action === "prev" && currentIndex > 0) {
             stopAuto();
             currentIndex -= 1;
-            applyMove(moves[currentIndex], false);
-            renderBoard(reviewBoard, boardState);
-            updateStep();
-            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+            renderCurrentReviewState();
         }
 
         if (action === "end") {
             stopAuto();
-            boardState = getInitialBoard();
-            for (let i = 0; i < moves.length; i += 1) {
-                applyMove(moves[i], true);
-            }
             currentIndex = moves.length;
-            renderBoard(reviewBoard, boardState);
-            updateStep();
-            renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+            renderCurrentReviewState();
         }
 
         if (action === "auto") {
@@ -332,20 +332,11 @@ function setupReviewBoard(game) {
         if (!Number.isFinite(index) || index < 0 || index >= moves.length) return;
 
         stopAuto();
-        boardState = getInitialBoard();
-        for (let i = 0; i <= index; i += 1) {
-            applyMove(moves[i], true);
-        }
-
         currentIndex = index + 1;
-        renderBoard(reviewBoard, boardState);
-        updateStep();
-        renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+        renderCurrentReviewState();
     };
 
-    renderBoard(reviewBoard, boardState);
-    updateStep();
-    renderMovesList(reviewMovesList, annotatedMoves, currentIndex);
+    renderCurrentReviewState();
 
     if (speedInput && speedValue) {
         speedValue.textContent = `${speedInput.value}x`;
@@ -356,6 +347,355 @@ function setupReviewBoard(game) {
             }
         });
     }
+}
+
+function buildReviewPosition(moves, currentIndex) {
+    const board = getInitialBoard();
+    const castlingRights = createInitialCastlingRights();
+    let enPassantTarget = null;
+    const capturedByWhite = [];
+    const capturedByBlack = [];
+
+    for (let index = 0; index < currentIndex; index += 1) {
+        const move = moves[index];
+        applyMoveToBoard(board, move, true);
+        updateCastlingRightsForMove(move, castlingRights);
+        enPassantTarget = getEnPassantTargetForMove(move);
+
+        if (move.captured) {
+            if (move.piece.startsWith("w")) {
+                capturedByWhite.push(move.captured);
+            } else {
+                capturedByBlack.push(move.captured);
+            }
+        }
+    }
+
+    return {
+        board,
+        castlingRights,
+        enPassantTarget,
+        sideToMove: currentIndex % 2 === 0 ? "w" : "b",
+        moveCount: currentIndex,
+        capturedByWhite,
+        capturedByBlack
+    };
+}
+
+function renderReviewCaptures(position) {
+    if (reviewCapturedTop) {
+        reviewCapturedTop.innerHTML = "";
+        position.capturedByBlack.forEach((piece) => {
+            const img = document.createElement("img");
+            img.src = `src/assets/pieces/${pieceMap[piece]}`;
+            img.alt = piece;
+            reviewCapturedTop.appendChild(img);
+        });
+    }
+
+    if (reviewCapturedBottom) {
+        reviewCapturedBottom.innerHTML = "";
+        position.capturedByWhite.forEach((piece) => {
+            const img = document.createElement("img");
+            img.src = `src/assets/pieces/${pieceMap[piece]}`;
+            img.alt = piece;
+            reviewCapturedBottom.appendChild(img);
+        });
+    }
+}
+
+function ensureHistoryCoach() {
+    if (historyCoach) return historyCoach;
+
+    try {
+        historyCoach = createStockfishCoach({
+            onStatus: ({ text, tone }) => updateHistoryCoachStatus(text, tone)
+        });
+        updateHistoryCoachStatus("Starting engine", "pending");
+    } catch {
+        historyCoach = null;
+        updateHistoryCoachStatus("Engine unavailable", "danger");
+    }
+
+    return historyCoach;
+}
+
+async function analyzeHistoryPosition(position) {
+    const coach = ensureHistoryCoach();
+    if (!coach) return;
+
+    const requestId = ++historyCoachRequestId;
+    const fen = buildReviewFen(position);
+
+    try {
+        const analysis = await coach.analyze({
+            fen,
+            depth: 11,
+            multiPv: 3
+        });
+
+        if (requestId !== historyCoachRequestId || !analysis) {
+            return;
+        }
+
+        renderHistoryCoachAnalysis(analysis);
+    } catch (error) {
+        if (error?.message === "Analysis superseded" || error?.message === "Analysis stopped") {
+            return;
+        }
+        updateHistoryCoachStatus("Engine unavailable", "danger");
+    }
+}
+
+function renderHistoryCoachLoading(message) {
+    updateHistoryCoachStatus(message, "pending");
+    if (historyCoachEval) historyCoachEval.textContent = "Eval: --";
+    if (historyCoachBestMove) historyCoachBestMove.textContent = "Waiting...";
+    if (historyCoachBestLine) historyCoachBestLine.textContent = "Step through the game and Stockfish will update for the current position.";
+    if (historyCoachTurnHint) historyCoachTurnHint.textContent = "White to move";
+    if (historyCoachTopMoves) {
+        historyCoachTopMoves.innerHTML = '<p class="coach-supporting-text">Analysis lines will appear here for the selected review position.</p>';
+    }
+}
+
+function updateHistoryCoachStatus(text, tone = "idle") {
+    if (!historyCoachStatus) return;
+    historyCoachStatus.textContent = text;
+    historyCoachStatus.className = `coach-status-badge tone-${tone}`;
+}
+
+function renderHistoryCoachAnalysis(analysis) {
+    const bestLine = analysis.lines?.[0];
+
+    updateHistoryCoachStatus("Engine ready", "ready");
+    if (historyCoachEval) historyCoachEval.textContent = `Eval: ${formatEvaluationLabel(bestLine, analysis.sideToMove)}`;
+    if (historyCoachBestMove) historyCoachBestMove.textContent = formatEngineMove(bestLine?.pv?.[0] || analysis.bestMove);
+    if (historyCoachBestLine) {
+        historyCoachBestLine.textContent = describePreferredIdea(bestLine?.pv?.[0] || analysis.bestMove, analysis.fen);
+    }
+    if (historyCoachTurnHint) {
+        historyCoachTurnHint.textContent = `${analysis.sideToMove === "w" ? "White" : "Black"} to move`;
+    }
+    renderHistoryCoachTopMoves(analysis);
+}
+
+function renderHistoryCoachTopMoves(analysis) {
+    if (!historyCoachTopMoves) return;
+
+    historyCoachTopMoves.innerHTML = "";
+    const lines = analysis.lines || [];
+    if (lines.length === 0) {
+        historyCoachTopMoves.innerHTML = '<p class="coach-supporting-text">No engine lines available for this position.</p>';
+        return;
+    }
+
+    lines.forEach((line, index) => {
+        const item = document.createElement("div");
+        item.className = `coach-top-line${index === 0 ? " is-best" : ""}`;
+
+        const head = document.createElement("div");
+        head.className = "coach-top-line-head";
+
+        const move = document.createElement("strong");
+        move.textContent = `${index + 1}. ${formatEngineMove(line.pv?.[0] || null)}`;
+
+        const score = document.createElement("span");
+        score.className = "coach-line-score";
+        score.textContent = formatEvaluationLabel(line, analysis.sideToMove);
+
+        const pv = document.createElement("div");
+        pv.className = "coach-line-pv";
+        pv.textContent = (line.pv || []).slice(0, 4).map((moveCode) => formatEngineMove(moveCode)).join("  ");
+
+        head.appendChild(move);
+        head.appendChild(score);
+        item.appendChild(head);
+        item.appendChild(pv);
+        historyCoachTopMoves.appendChild(item);
+    });
+}
+
+function formatEvaluationLabel(line, sideToMove) {
+    if (!line) return "--";
+
+    const whiteScore = scoreLineToWhiteCentipawns(line, sideToMove);
+    if (line.scoreType === "mate") {
+        const winner = whiteScore > 0 ? "White" : "Black";
+        return `${winner} mate in ${Math.abs(line.scoreValue)}`;
+    }
+
+    const advantage = Math.abs(whiteScore / 100).toFixed(1);
+    return `${whiteScore >= 0 ? "White" : "Black"} +${advantage}`;
+}
+
+function scoreLineToWhiteCentipawns(line, sideToMove) {
+    if (!line) return 0;
+
+    if (line.scoreType === "mate") {
+        const mateValue = 100000 - (Math.abs(line.scoreValue) * 1000);
+        const signedMate = line.scoreValue < 0 ? -mateValue : mateValue;
+        return sideToMove === "w" ? signedMate : -signedMate;
+    }
+
+    return sideToMove === "w" ? line.scoreValue : -line.scoreValue;
+}
+
+function formatEngineMove(moveUci) {
+    const parsed = parseUciMove(moveUci);
+    if (!parsed) return "--";
+
+    return `${toAlgebraic(parsed.fromRow, parsed.fromCol)}-${toAlgebraic(parsed.toRow, parsed.toCol)}${parsed.promotion ? `=${parsed.promotion.toUpperCase()}` : ""}`;
+}
+
+function parseUciMove(moveUci) {
+    if (!moveUci || moveUci.length < 4) return null;
+
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const fromCol = files.indexOf(moveUci[0]);
+    const toCol = files.indexOf(moveUci[2]);
+    const fromRank = Number(moveUci[1]);
+    const toRank = Number(moveUci[3]);
+    if (fromCol < 0 || toCol < 0 || Number.isNaN(fromRank) || Number.isNaN(toRank)) return null;
+
+    return {
+        fromRow: 8 - fromRank,
+        fromCol,
+        toRow: 8 - toRank,
+        toCol,
+        promotion: moveUci[4] || ""
+    };
+}
+
+function describePreferredIdea(moveUci, fen) {
+    const parsed = parseUciMove(moveUci);
+    if (!parsed) return "It keeps the position under the best control.";
+
+    const state = boardFromFen(fen);
+    const piece = state?.[parsed.fromRow]?.[parsed.fromCol] || "";
+    const isCapture = Boolean(state?.[parsed.toRow]?.[parsed.toCol]);
+
+    if (piece[1] === "k" && Math.abs(parsed.toCol - parsed.fromCol) === 2) {
+        return "It castles, improving king safety and bringing the rook into play.";
+    }
+
+    if (piece[1] === "n" || piece[1] === "b") {
+        return "It develops a minor piece and improves activity.";
+    }
+
+    if (piece[1] === "p" && ["d", "e"].includes(moveUci[0]) && ["4", "5"].includes(moveUci[3])) {
+        return "It fights for the center and opens lines for the other pieces.";
+    }
+
+    if (isCapture) {
+        return "It wins material or removes an important defender.";
+    }
+
+    return "It keeps the position under the best control.";
+}
+
+function boardFromFen(fen) {
+    const boardToken = fen?.split(" ")[0];
+    if (!boardToken) return null;
+
+    return boardToken.split("/").map((rank) => {
+        const row = [];
+        rank.split("").forEach((char) => {
+            if (/\d/.test(char)) {
+                for (let index = 0; index < Number(char); index += 1) {
+                    row.push("");
+                }
+                return;
+            }
+
+            const color = char === char.toUpperCase() ? "w" : "b";
+            row.push(`${color}${char.toLowerCase()}`);
+        });
+        return row;
+    });
+}
+
+function buildReviewFen(position) {
+    const boardFen = position.board.map((row) => {
+        let empty = 0;
+        let output = "";
+
+        row.forEach((piece) => {
+            if (!piece) {
+                empty += 1;
+                return;
+            }
+
+            if (empty > 0) {
+                output += String(empty);
+                empty = 0;
+            }
+
+            const letter = piece[1];
+            output += piece.startsWith("w") ? letter.toUpperCase() : letter;
+        });
+
+        if (empty > 0) output += String(empty);
+        return output;
+    }).join("/");
+
+    return `${boardFen} ${position.sideToMove} ${getReviewCastlingFen(position.castlingRights, position.board)} ${getReviewEnPassantFen(position.enPassantTarget)} ${getReviewHalfmoveClock(position.moveCount)} ${Math.floor(position.moveCount / 2) + 1}`;
+}
+
+function getReviewCastlingFen(rights, board) {
+    let value = "";
+    if (!rights.white.kingMoved && !rights.white.rookH && board[7][4] === "wk" && board[7][7] === "wr") value += "K";
+    if (!rights.white.kingMoved && !rights.white.rookA && board[7][4] === "wk" && board[7][0] === "wr") value += "Q";
+    if (!rights.black.kingMoved && !rights.black.rookH && board[0][4] === "bk" && board[0][7] === "br") value += "k";
+    if (!rights.black.kingMoved && !rights.black.rookA && board[0][4] === "bk" && board[0][0] === "br") value += "q";
+    return value || "-";
+}
+
+function getReviewEnPassantFen(target) {
+    if (!target) return "-";
+    return toAlgebraic(target.targetRow, target.targetCol);
+}
+
+function getReviewHalfmoveClock(moveCount) {
+    return moveCount === 0 ? 0 : 1;
+}
+
+function createInitialCastlingRights() {
+    return {
+        white: { kingMoved: false, rookA: false, rookH: false },
+        black: { kingMoved: false, rookA: false, rookH: false }
+    };
+}
+
+function updateCastlingRightsForMove(move, rights) {
+    const movingColor = move.piece.startsWith("w") ? "white" : "black";
+    const opponentColor = movingColor === "white" ? "black" : "white";
+
+    if (move.piece[1] === "k") {
+        rights[movingColor].kingMoved = true;
+    }
+
+    if (move.piece[1] === "r") {
+        if (move.fromRow === (movingColor === "white" ? 7 : 0) && move.fromCol === 0) rights[movingColor].rookA = true;
+        if (move.fromRow === (movingColor === "white" ? 7 : 0) && move.fromCol === 7) rights[movingColor].rookH = true;
+    }
+
+    if (move.captured === (opponentColor === "white" ? "wr" : "br")) {
+        const captureRow = move.enPassantCapture ? move.enPassantCapture.row : move.toRow;
+        const captureCol = move.enPassantCapture ? move.enPassantCapture.col : move.toCol;
+        if (captureRow === (opponentColor === "white" ? 7 : 0) && captureCol === 0) rights[opponentColor].rookA = true;
+        if (captureRow === (opponentColor === "white" ? 7 : 0) && captureCol === 7) rights[opponentColor].rookH = true;
+    }
+}
+
+function getEnPassantTargetForMove(move) {
+    if (move.piece[1] !== "p") return null;
+    if (Math.abs(move.toRow - move.fromRow) !== 2) return null;
+
+    const direction = move.piece.startsWith("w") ? -1 : 1;
+    return {
+        targetRow: move.fromRow + direction,
+        targetCol: move.fromCol
+    };
 }
 
 async function initHistory() {

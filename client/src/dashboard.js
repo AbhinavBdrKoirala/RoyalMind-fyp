@@ -5,10 +5,19 @@ const botDialog = document.getElementById("botDialog");
 const playBotButton = document.getElementById("playBotButton");
 const closeBotDialog = document.getElementById("closeBotDialog");
 const botLevelButtons = Array.from(document.querySelectorAll("[data-level]"));
+const appUi = window.RoyalMindUI || {
+    notify: () => {}
+};
 
 if (!token) {
-    alert("You must login first");
-    window.location.href = "index.html";
+    appUi.notify("Please log in to continue.", {
+        title: "Session required",
+        tone: "info",
+        duration: 1200
+    });
+    setTimeout(() => {
+        window.location.href = "index.html";
+    }, 700);
 }
 
 function parseStoredUser() {

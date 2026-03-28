@@ -1,8 +1,17 @@
 const token = localStorage.getItem("token");
+const appUi = window.RoyalMindUI || {
+    notify: () => {}
+};
 
 if (!token) {
-    alert("You must login first");
-    window.location.href = "index.html";
+    appUi.notify("Please log in to open your settings.", {
+        title: "Session required",
+        tone: "info",
+        duration: 1200
+    });
+    setTimeout(() => {
+        window.location.href = "index.html";
+    }, 700);
 }
 
 const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
@@ -179,14 +188,15 @@ async function apiFetch(path, options = {}) {
     return null;
 }
 
-function showToast(message) {
-    if (!toast) return;
-    toast.textContent = message;
-    toast.classList.add("is-visible");
-    clearTimeout(showToast.timer);
-    showToast.timer = setTimeout(() => {
-        toast.classList.remove("is-visible");
-    }, 2400);
+function showToast(message, tone = "info", title = "Settings") {
+    if (toast) {
+        toast.textContent = message;
+    }
+
+    appUi.notify(message, {
+        title,
+        tone
+    });
 }
 
 async function saveSettings() {
@@ -201,7 +211,7 @@ async function saveSettings() {
     });
 
     if (!response) {
-        showToast("Saved locally. Backend is unavailable right now.");
+        showToast("Saved locally. Backend is unavailable right now.", "warning", "Offline save");
         return;
     }
 
@@ -219,7 +229,7 @@ async function saveSettings() {
         } catch {
             // ignore invalid json
         }
-        showToast(message);
+        showToast(message, "error", "Could not save");
         return;
     }
 
@@ -237,7 +247,7 @@ async function saveSettings() {
         applySettings(nextUser.settings, nextUser);
     }
 
-    showToast("Settings saved to your account.");
+    showToast("Settings saved to your account.", "success", "All set");
 }
 
 function bindMenuHighlight() {
