@@ -1323,6 +1323,76 @@ body.history-page {
     color: #f1f5ec;
 }
 
+body.game-page,
+body.history-page {
+    --board-light-surface: #f0d9b5;
+    --board-dark-surface: #b58863;
+    --board-label-on-light: rgba(48, 64, 40, 0.82);
+    --board-label-on-dark: rgba(239, 242, 232, 0.88);
+    --board-piece-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.22));
+    --history-piece-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+    --board-piece-scale: 1;
+    --piece-animation-duration: 0.18s;
+    --piece-transition-duration: 0.18s;
+}
+
+body.game-page.board-theme-classic-wood,
+body.history-page.board-theme-classic-wood {
+    --board-light-surface: #f0d9b5;
+    --board-dark-surface: #b58863;
+    --board-label-on-light: rgba(48, 64, 40, 0.82);
+    --board-label-on-dark: rgba(239, 242, 232, 0.88);
+}
+
+body.game-page.board-theme-emerald,
+body.history-page.board-theme-emerald {
+    --board-light-surface: #dbe7d3;
+    --board-dark-surface: #5f7f61;
+    --board-label-on-light: rgba(30, 57, 37, 0.82);
+    --board-label-on-dark: rgba(244, 248, 242, 0.9);
+}
+
+body.game-page.board-theme-slate,
+body.history-page.board-theme-slate {
+    --board-light-surface: #d8dde5;
+    --board-dark-surface: #677386;
+    --board-label-on-light: rgba(34, 44, 58, 0.82);
+    --board-label-on-dark: rgba(245, 247, 250, 0.9);
+}
+
+body.game-page.piece-style-royal-set,
+body.history-page.piece-style-royal-set {
+    --board-piece-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.22));
+    --history-piece-filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.2));
+    --board-piece-scale: 1;
+}
+
+body.game-page.piece-style-modern,
+body.history-page.piece-style-modern {
+    --board-piece-filter: saturate(1.12) contrast(1.06) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.22));
+    --history-piece-filter: saturate(1.12) contrast(1.06) drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+    --board-piece-scale: 0.98;
+}
+
+body.game-page.piece-style-minimal,
+body.history-page.piece-style-minimal {
+    --board-piece-filter: grayscale(0.24) contrast(1.08) brightness(1.02) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+    --history-piece-filter: grayscale(0.24) contrast(1.08) brightness(1.02) drop-shadow(0 1px 2px rgba(0, 0, 0, 0.16));
+    --board-piece-scale: 0.94;
+}
+
+body.game-page.pieces-static,
+body.history-page.pieces-static {
+    --piece-animation-duration: 0s;
+    --piece-transition-duration: 0s;
+}
+
+body.game-page.pieces-animated,
+body.history-page.pieces-animated {
+    --piece-animation-duration: 0.18s;
+    --piece-transition-duration: 0.18s;
+}
+
 .history-header {
     width: min(1320px, 96%);
     margin: 16px auto 0;
@@ -1666,9 +1736,23 @@ body.history-page {
     justify-content: center;
 }
 
+.history-board .square.light,
+body.game-page .square.light {
+    background-color: var(--board-light-surface);
+}
+
+.history-board .square.dark,
+body.game-page .square.dark {
+    background-color: var(--board-dark-surface);
+}
+
 .history-board .square img {
     width: 78%;
     height: 78%;
+    transform: scale(var(--board-piece-scale));
+    filter: var(--history-piece-filter);
+    transition: transform var(--piece-transition-duration) ease, filter var(--piece-transition-duration) ease, opacity var(--piece-transition-duration) ease;
+    animation: boardPieceEnter var(--piece-animation-duration) ease both;
 }
 
 .history-review .history-board {
@@ -1911,15 +1995,14 @@ body.game-page {
     min-height: calc(100vh - 66px);
     margin: 10px auto 16px;
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
     gap: 18px;
     align-items: start;
-    justify-items: center;
+    justify-items: stretch;
 }
 
 body.game-page.analysis-enabled .game-shell {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 720px);
-    justify-items: stretch;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 720px);
 }
 
 .board-panel,
@@ -1933,6 +2016,7 @@ body.game-page.analysis-enabled .game-shell {
 
 .board-panel {
     width: min(980px, 100%);
+    justify-self: center;
     padding: 14px;
     display: flex;
     flex-direction: column;
@@ -2023,7 +2107,10 @@ body.game-page .square img {
     width: 84%;
     height: 84%;
     image-rendering: auto;
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.22));
+    transform: scale(var(--board-piece-scale));
+    filter: var(--board-piece-filter);
+    transition: transform var(--piece-transition-duration) ease, filter var(--piece-transition-duration) ease, opacity var(--piece-transition-duration) ease;
+    animation: boardPieceEnter var(--piece-animation-duration) ease both;
 }
 
 body.game-page .square.selected {
@@ -2053,11 +2140,11 @@ body.game-page .rank-label {
 }
 
 body.game-page .square.light .square-label {
-    color: rgba(48, 64, 40, 0.82);
+    color: var(--board-label-on-light);
 }
 
 body.game-page .square.dark .square-label {
-    color: rgba(239, 242, 232, 0.88);
+    color: var(--board-label-on-dark);
 }
 
 body.game-page .legal-move-square {
@@ -2115,11 +2202,11 @@ body.game-page .last-move-target {
 
 .game-sidebar-shell {
     display: grid;
-    width: min(980px, 100%);
+    width: 100%;
     grid-template-columns: minmax(280px, 420px);
     gap: 14px;
     align-items: start;
-    justify-content: center;
+    justify-content: stretch;
 }
 
 .game-sidebar-shell > * {
@@ -2573,14 +2660,13 @@ body.game-page.is-fullscreen .game-shell {
     width: min(1560px, 98vw);
     height: calc(100vh - 84px);
     min-height: calc(100vh - 84px);
-    grid-template-columns: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
     overflow: hidden;
-    justify-items: center;
+    justify-items: stretch;
 }
 
 body.game-page.is-fullscreen.analysis-enabled .game-shell {
-    grid-template-columns: minmax(0, 1fr) minmax(280px, 720px);
-    justify-items: stretch;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 720px);
 }
 
 body.game-page.is-fullscreen .board-panel {
@@ -2691,6 +2777,17 @@ body.game-page #promotion-overlay {
 body.game-page .promotion-container {
     background: #1a2118;
     border: 1px solid rgba(220, 231, 208, 0.16);
+}
+
+@keyframes boardPieceEnter {
+    0% {
+        opacity: 0;
+        transform: scale(calc(var(--board-piece-scale) * 0.9));
+    }
+    100% {
+        opacity: 1;
+        transform: scale(var(--board-piece-scale));
+    }
 }
 
 @media (max-width: 1050px) {

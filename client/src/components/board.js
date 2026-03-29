@@ -47,6 +47,9 @@ const BOT_LEVELS = {
     hard: { label: "Hard Bot", depth: 3, thinkTime: 760 }
 };
 
+const BOARD_THEME_CLASS_PREFIX = "board-theme-";
+const PIECE_STYLE_CLASS_PREFIX = "piece-style-";
+
 const query = new URLSearchParams(window.location.search);
 const gameMode = query.get("mode") === "bot" ? "bot" : "local";
 const botLevel = BOT_LEVELS[query.get("level")] ? query.get("level") : "easy";
@@ -125,6 +128,7 @@ coachEnabled = getStoredCoachPreference();
 export function createBoard() {
     initializeGameUi();
     initializeMatchUi();
+    applyAppearanceSettings();
 
     const boardElement = document.getElementById("chessboard");
     if (!boardElement) return;
@@ -2037,6 +2041,34 @@ function getStoredCoachPreference() {
     } catch {
         return false;
     }
+}
+
+function normalizeAppearanceToken(value, fallback) {
+    const normalized = String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+    return normalized || fallback;
+}
+
+function applyAppearanceSettings() {
+    const body = document.body;
+    if (!body) return;
+
+    const boardTheme = `${BOARD_THEME_CLASS_PREFIX}${normalizeAppearanceToken(settingsCache.boardTheme, "classic-wood")}`;
+    const pieceStyle = `${PIECE_STYLE_CLASS_PREFIX}${normalizeAppearanceToken(settingsCache.pieceStyle, "royal-set")}`;
+    const animationClass = settingsCache.animatePieces === false ? "pieces-static" : "pieces-animated";
+
+    [BOARD_THEME_CLASS_PREFIX, PIECE_STYLE_CLASS_PREFIX].forEach((prefix) => {
+        Array.from(body.classList)
+            .filter((className) => className.startsWith(prefix))
+            .forEach((className) => body.classList.remove(className));
+    });
+
+    body.classList.remove("pieces-static", "pieces-animated");
+    body.classList.add(boardTheme, pieceStyle, animationClass);
 }
 
 function shouldShowCoordinates() {

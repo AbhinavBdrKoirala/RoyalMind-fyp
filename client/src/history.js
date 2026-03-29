@@ -35,11 +35,51 @@ let filteredGames = [];
 let historyCoach = null;
 let historyCoachRequestId = 0;
 
+const BOARD_THEME_CLASS_PREFIX = "board-theme-";
+const PIECE_STYLE_CLASS_PREFIX = "piece-style-";
+
 function decorateUiPieceIcon(img, piece, ...extraClasses) {
     img.classList.add(...extraClasses);
     if (piece?.startsWith("b")) {
         img.classList.add("ui-piece-icon-black");
     }
+}
+
+function getStoredSettings() {
+    try {
+        return JSON.parse(localStorage.getItem("royalmindSettings")) || {};
+    } catch {
+        return {};
+    }
+}
+
+function normalizeAppearanceToken(value, fallback) {
+    const normalized = String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+
+    return normalized || fallback;
+}
+
+function applyAppearanceSettings() {
+    const body = document.body;
+    if (!body) return;
+
+    const settings = getStoredSettings();
+    const boardTheme = `${BOARD_THEME_CLASS_PREFIX}${normalizeAppearanceToken(settings.boardTheme, "classic-wood")}`;
+    const pieceStyle = `${PIECE_STYLE_CLASS_PREFIX}${normalizeAppearanceToken(settings.pieceStyle, "royal-set")}`;
+    const animationClass = settings.animatePieces === false ? "pieces-static" : "pieces-animated";
+
+    [BOARD_THEME_CLASS_PREFIX, PIECE_STYLE_CLASS_PREFIX].forEach((prefix) => {
+        Array.from(body.classList)
+            .filter((className) => className.startsWith(prefix))
+            .forEach((className) => body.classList.remove(className));
+    });
+
+    body.classList.remove("pieces-static", "pieces-animated");
+    body.classList.add(boardTheme, pieceStyle, animationClass);
 }
 
 function parseStoredUser() {
@@ -951,6 +991,7 @@ backToHistoryBtn?.addEventListener("click", () => {
     showOverview();
 });
 
+applyAppearanceSettings();
 initHistory();
 
 const pieceMap = {
