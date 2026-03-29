@@ -35,6 +35,13 @@ let filteredGames = [];
 let historyCoach = null;
 let historyCoachRequestId = 0;
 
+function decorateUiPieceIcon(img, piece, ...extraClasses) {
+    img.classList.add(...extraClasses);
+    if (piece?.startsWith("b")) {
+        img.classList.add("ui-piece-icon-black");
+    }
+}
+
 function parseStoredUser() {
     const raw = localStorage.getItem("royalmindUser");
     if (!raw) return null;
@@ -389,6 +396,7 @@ function renderReviewCaptures(position) {
             const img = document.createElement("img");
             img.src = `src/assets/pieces/${pieceMap[piece]}`;
             img.alt = piece;
+            decorateUiPieceIcon(img, piece, "captured-piece-icon");
             reviewCapturedTop.appendChild(img);
         });
     }
@@ -399,6 +407,7 @@ function renderReviewCaptures(position) {
             const img = document.createElement("img");
             img.src = `src/assets/pieces/${pieceMap[piece]}`;
             img.alt = piece;
+            decorateUiPieceIcon(img, piece, "captured-piece-icon");
             reviewCapturedBottom.appendChild(img);
         });
     }
@@ -469,7 +478,7 @@ function renderHistoryCoachAnalysis(analysis) {
 
     updateHistoryCoachStatus("Engine ready", "ready");
     if (historyCoachEval) historyCoachEval.textContent = `Eval: ${formatEvaluationLabel(bestLine, analysis.sideToMove)}`;
-    if (historyCoachBestMove) historyCoachBestMove.textContent = formatEngineMove(bestLine?.pv?.[0] || analysis.bestMove);
+    if (historyCoachBestMove) historyCoachBestMove.textContent = formatEngineMove(bestLine?.pv?.[0] || analysis.bestMove, analysis.fen);
     if (historyCoachBestLine) {
         historyCoachBestLine.textContent = describePreferredIdea(bestLine?.pv?.[0] || analysis.bestMove, analysis.fen);
     }
@@ -497,7 +506,7 @@ function renderHistoryCoachTopMoves(analysis) {
         head.className = "coach-top-line-head";
 
         const move = document.createElement("strong");
-        move.textContent = `${index + 1}. ${formatEngineMove(line.pv?.[0] || null)}`;
+        move.textContent = `${index + 1}. ${formatEngineMove(line.pv?.[0] || null, analysis.fen)}`;
 
         const score = document.createElement("span");
         score.className = "coach-line-score";
@@ -505,7 +514,7 @@ function renderHistoryCoachTopMoves(analysis) {
 
         const pv = document.createElement("div");
         pv.className = "coach-line-pv";
-        pv.textContent = (line.pv || []).slice(0, 4).map((moveCode) => formatEngineMove(moveCode)).join("  ");
+        pv.textContent = formatEnginePv(line.pv || [], analysis.fen);
 
         head.appendChild(move);
         head.appendChild(score);
@@ -540,11 +549,11 @@ function scoreLineToWhiteCentipawns(line, sideToMove) {
     return sideToMove === "w" ? line.scoreValue : -line.scoreValue;
 }
 
-function formatEngineMove(moveUci) {
-    const parsed = parseUciMove(moveUci);
-    if (!parsed) return "--";
+function formatEngineMove(moveUci, fen) {
+    const position = parseFenPosition(fen);
+    if (!position) return "--";
 
-    return `${toAlgebraic(parsed.fromRow, parsed.fromCol)}-${toAlgebraic(parsed.toRow, parsed.toCol)}${parsed.promotion ? `=${parsed.promotion.toUpperCase()}` : ""}`;
+    return formatMoveOnBoard(moveUci, position.board, position.enPassantTarget);
 }
 
 function parseUciMove(moveUci) {
@@ -563,6 +572,212 @@ function parseUciMove(moveUci) {
         toRow: 8 - toRank,
         toCol,
         promotion: moveUci[4] || ""
+    };
+}
+
+function parseFenPosition(fen) {
+    if (!fen) return null;
+
+    const parts = fen.split(" ");
+    return {
+        board: boardFromFen(fen),
+        enPassantTarget: parseFenEnPassant(parts[3])
+    };
+}
+
+function parseFenEnPassant(token) {
+    if (!token || token === "-") return null;
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const col = files.indexOf(token[0]);
+    const rank = Number(token[1]);
+    if (col < 0 || Number.isNaN(rank)) return null;
+
+    return {
+        targetRow: 8 - rank,
+        targetCol: col
+    };
+}
+
+function formatMoveOnBoard(moveUci, board, enPassantTarget = null) {
+    const parsed = parseUciMove(moveUci);
+    if (!parsed || !board) return "--";
+
+    const moveMeta = createMoveMetaFromBoard(board, parsed, enPassantTarget);
+    if (!moveMeta) return "--";
+    return buildSanLikeNotation(moveMeta, board);
+}
+
+function formatEnginePv(pv, fen, moveLimit = 4) {
+    const position = parseFenPosition(fen);
+    if (!position) return "";
+
+    const board = cloneBoard(position.board);
+    let enPassantTarget = position.enPassantTarget ? { ...position.enPassantTarget } : null;
+
+    return (pv || []).slice(0, moveLimit).map((moveUci) => {
+        const notation = formatMoveOnBoard(moveUci, board, enPassantTarget);
+        const parsed = parseUciMove(moveUci);
+        if (parsed) {
+            const moveMeta = createMoveMetaFromBoard(board, parsed, enPassantTarget);
+            if (moveMeta) {
+                applyMoveToBoard(board, moveMeta);
+                enPassantTarget = getEnPassantTargetForNotation(moveMeta);
+            } else {
+                enPassantTarget = null;
+            }
+        } else {
+            enPassantTarget = null;
+        }
+        return notation;
+    }).filter(Boolean).join("  ");
+}
+
+function createMoveMetaFromBoard(board, parsedMove, enPassantTarget = null) {
+    const piece = board?.[parsedMove.fromRow]?.[parsedMove.fromCol];
+    if (!piece) return null;
+
+    const targetPiece = board?.[parsedMove.toRow]?.[parsedMove.toCol] || "";
+    const isCastle = piece[1] === "k" && Math.abs(parsedMove.toCol - parsedMove.fromCol) === 2;
+    const isEnPassant = piece[1] === "p"
+        && parsedMove.fromCol !== parsedMove.toCol
+        && !targetPiece
+        && enPassantTarget
+        && enPassantTarget.targetRow === parsedMove.toRow
+        && enPassantTarget.targetCol === parsedMove.toCol;
+
+    const moveMeta = {
+        piece,
+        fromRow: parsedMove.fromRow,
+        fromCol: parsedMove.fromCol,
+        toRow: parsedMove.toRow,
+        toCol: parsedMove.toCol,
+        captured: isEnPassant ? board[parsedMove.fromRow][parsedMove.toCol] : (targetPiece || null),
+        promotedTo: parsedMove.promotion ? `${piece[0]}${parsedMove.promotion.toLowerCase()}` : null,
+        rookMove: null,
+        enPassantCapture: null
+    };
+
+    if (isCastle) {
+        const rookFromCol = parsedMove.toCol > parsedMove.fromCol ? 7 : 0;
+        const rookToCol = parsedMove.toCol > parsedMove.fromCol ? parsedMove.toCol - 1 : parsedMove.toCol + 1;
+        moveMeta.rookMove = {
+            piece: piece.startsWith("w") ? "wr" : "br",
+            fromRow: parsedMove.fromRow,
+            fromCol: rookFromCol,
+            toRow: parsedMove.fromRow,
+            toCol: rookToCol
+        };
+    }
+
+    if (isEnPassant) {
+        moveMeta.enPassantCapture = {
+            row: parsedMove.fromRow,
+            col: parsedMove.toCol,
+            piece: board[parsedMove.fromRow][parsedMove.toCol]
+        };
+    }
+
+    return moveMeta;
+}
+
+function buildSanLikeNotation(moveMeta, board) {
+    if (moveMeta.piece[1] === "k" && Math.abs(moveMeta.toCol - moveMeta.fromCol) === 2) {
+        return moveMeta.toCol > moveMeta.fromCol ? "O-O" : "O-O-O";
+    }
+
+    const { piece, fromRow, fromCol, toRow, toCol, captured, promotedTo } = moveMeta;
+    const isPawn = piece[1] === "p";
+    const pieceLetter = isPawn ? "" : piece[1].toUpperCase();
+    const captureMark = captured ? "x" : "";
+    const targetSquare = toAlgebraic(toRow, toCol);
+    const promotionMark = promotedTo ? `=${promotedTo[1].toUpperCase()}` : "";
+
+    if (isPawn) {
+        const pawnPrefix = captured ? toAlgebraic(fromRow, fromCol)[0] : "";
+        return `${pawnPrefix}${captureMark}${targetSquare}${promotionMark}`;
+    }
+
+    const disambiguation = getNotationDisambiguation(board, moveMeta);
+    return `${pieceLetter}${disambiguation}${captureMark}${targetSquare}${promotionMark}`;
+}
+
+function getNotationDisambiguation(board, moveMeta) {
+    const { piece, fromRow, fromCol, toRow, toCol } = moveMeta;
+    const contenders = [];
+
+    for (let row = 0; row < 8; row += 1) {
+        for (let col = 0; col < 8; col += 1) {
+            if (row === fromRow && col === fromCol) continue;
+            if (board[row][col] !== piece) continue;
+            if (canPieceReachTargetForNotation(board, piece, row, col, toRow, toCol)) {
+                contenders.push({ row, col });
+            }
+        }
+    }
+
+    return contenders.length > 0 ? toAlgebraic(fromRow, fromCol) : "";
+}
+
+function canPieceReachTargetForNotation(board, piece, fromRow, fromCol, toRow, toCol) {
+    if (!board || !piece) return false;
+    if (fromRow === toRow && fromCol === toCol) return false;
+
+    const target = board[toRow]?.[toCol] || "";
+    if (target && target.startsWith(piece[0])) return false;
+
+    const rowDiff = toRow - fromRow;
+    const colDiff = toCol - fromCol;
+    const absRow = Math.abs(rowDiff);
+    const absCol = Math.abs(colDiff);
+
+    if (piece[1] === "n") {
+        return (absRow === 2 && absCol === 1) || (absRow === 1 && absCol === 2);
+    }
+
+    if (piece[1] === "b") {
+        return absRow === absCol && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    }
+
+    if (piece[1] === "r") {
+        return (fromRow === toRow || fromCol === toCol) && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    }
+
+    if (piece[1] === "q") {
+        const diagonal = absRow === absCol;
+        const straight = fromRow === toRow || fromCol === toCol;
+        return (diagonal || straight) && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    }
+
+    if (piece[1] === "k") {
+        return absRow <= 1 && absCol <= 1;
+    }
+
+    return false;
+}
+
+function isPathClear(board, fromRow, fromCol, toRow, toCol) {
+    const rowStep = Math.sign(toRow - fromRow);
+    const colStep = Math.sign(toCol - fromCol);
+    let row = fromRow + rowStep;
+    let col = fromCol + colStep;
+
+    while (row !== toRow || col !== toCol) {
+        if (board[row]?.[col]) return false;
+        row += rowStep;
+        col += colStep;
+    }
+
+    return true;
+}
+
+function getEnPassantTargetForNotation(move) {
+    if (!move || move.piece[1] !== "p") return null;
+    if (Math.abs(move.toRow - move.fromRow) !== 2) return null;
+
+    const direction = move.piece.startsWith("w") ? -1 : 1;
+    return {
+        targetRow: move.fromRow + direction,
+        targetCol: move.fromCol
     };
 }
 

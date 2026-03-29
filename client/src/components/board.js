@@ -110,6 +110,13 @@ const pieceMap = {
     bk: "black_king.png"
 };
 
+function decorateUiPieceIcon(img, piece, ...extraClasses) {
+    img.classList.add(...extraClasses);
+    if (piece?.startsWith("b")) {
+        img.classList.add("ui-piece-icon-black");
+    }
+}
+
 const COACH_DEPTH = 11;
 const COACH_MULTI_PV = 3;
 const COACH_STORAGE_KEY = "royalmindCoachEnabled";
@@ -197,6 +204,9 @@ function initializeGameUi() {
     const fullscreenToggle = document.getElementById("fullscreenToggle");
     const drawToggle = document.getElementById("drawToggle");
     const resignToggle = document.getElementById("resignToggle");
+    const overlayNewGameBtn = document.getElementById("overlayNewGameBtn");
+    const overlayReviewBtn = document.getElementById("overlayReviewBtn");
+    const overlayViewBoardBtn = document.getElementById("overlayViewBoardBtn");
 
     if (timeControlSelect && customMinutes) {
         const preferredPreset = SETTINGS_TIME_TO_PRESET[settingsCache.defaultTime];
@@ -247,6 +257,30 @@ function initializeGameUi() {
 
     if (resignToggle) {
         resignToggle.addEventListener("click", handleResign);
+    }
+
+    if (overlayNewGameBtn) {
+        overlayNewGameBtn.addEventListener("click", () => {
+            const timeInSeconds = getTimeFromUi() || 600;
+            resetGameState(timeInSeconds);
+        });
+    }
+
+    if (overlayReviewBtn) {
+        overlayReviewBtn.addEventListener("click", () => {
+            hideGameOverlay();
+            if (!coachEnabled) {
+                setCoachEnabled(true);
+                return;
+            }
+            scheduleCoachAnalysis({ immediate: true, force: true });
+        });
+    }
+
+    if (overlayViewBoardBtn) {
+        overlayViewBoardBtn.addEventListener("click", () => {
+            hideGameOverlay();
+        });
     }
 
     document.addEventListener("fullscreenchange", syncFullscreenUi);
@@ -463,8 +497,7 @@ function resetGameState(timeInSeconds = 600) {
     const moveList = document.getElementById("moveList");
     if (moveList) moveList.innerHTML = "";
 
-    const overlay = document.getElementById("gameOverlay");
-    if (overlay) overlay.classList.add("hidden");
+    hideGameOverlay();
 
     updateTimerDisplay();
     createBoard();
@@ -710,6 +743,7 @@ function showLegalMoveHints(piece, row, col) {
         hintImg.className = "legal-move-piece";
         hintImg.src = `src/assets/pieces/${pieceMap[piece]}`;
         hintImg.alt = "";
+        decorateUiPieceIcon(hintImg, piece);
 
         hint.appendChild(hintImg);
         targetSquare.appendChild(hint);
@@ -736,6 +770,7 @@ function renderCapturedPieces() {
         const img = document.createElement("img");
         img.src = `src/assets/pieces/${pieceMap[piece]}`;
         img.alt = piece;
+        decorateUiPieceIcon(img, piece, "captured-piece-icon");
         whiteContainer.appendChild(img);
     });
 
@@ -743,6 +778,7 @@ function renderCapturedPieces() {
         const img = document.createElement("img");
         img.src = `src/assets/pieces/${pieceMap[piece]}`;
         img.alt = piece;
+        decorateUiPieceIcon(img, piece, "captured-piece-icon");
         blackContainer.appendChild(img);
     });
 }
@@ -851,7 +887,7 @@ function renderCoachPanel() {
 
     if (coachCurrentAnalysis?.lines?.length) {
         const bestLine = coachCurrentAnalysis.lines[0];
-        bestMoveElement.textContent = formatEngineMove(bestLine?.pv?.[0] || coachCurrentAnalysis.bestMove);
+        bestMoveElement.textContent = formatEngineMove(bestLine?.pv?.[0] || coachCurrentAnalysis.bestMove, coachCurrentAnalysis.fen);
         bestLineElement.textContent = describePreferredIdea(bestLine?.pv?.[0] || coachCurrentAnalysis.bestMove, coachCurrentAnalysis.fen);
         evalElement.textContent = `Eval: ${formatEvaluationLabel(bestLine, coachCurrentAnalysis.sideToMove)}`;
         turnHintElement.textContent = `${coachCurrentAnalysis.sideToMove === "w" ? "White" : "Black"} to move`;
@@ -886,7 +922,7 @@ function renderCoachTopMoves(container, analysis) {
         head.className = "coach-top-line-head";
 
         const move = document.createElement("strong");
-        move.textContent = `${index + 1}. ${formatEngineMove(line.pv?.[0] || null)}`;
+        move.textContent = `${index + 1}. ${formatEngineMove(line.pv?.[0] || null, analysis.fen)}`;
 
         const score = document.createElement("span");
         score.className = "coach-line-score";
@@ -894,7 +930,7 @@ function renderCoachTopMoves(container, analysis) {
 
         const pv = document.createElement("div");
         pv.className = "coach-line-pv";
-        pv.textContent = (line.pv || []).slice(0, 4).map((moveCode) => formatEngineMove(moveCode)).join("  ");
+        pv.textContent = formatEnginePv(line.pv || [], analysis.fen);
 
         head.appendChild(move);
         head.appendChild(score);
@@ -912,7 +948,7 @@ function clearCoachAnalysisTimer() {
 }
 
 function scheduleCoachAnalysis({ immediate = false, force = false } = {}) {
-    if (!coachEnabled || gameFinished) return;
+    if (!coachEnabled) return;
 
     ensureCoachEngine();
     if (!coachEngine) return;
@@ -935,7 +971,7 @@ function scheduleCoachAnalysis({ immediate = false, force = false } = {}) {
 }
 
 async function analyzeCurrentPosition(fen) {
-    if (!coachEnabled || gameFinished) return;
+    if (!coachEnabled) return;
 
     ensureCoachEngine();
     if (!coachEngine) return;
@@ -1038,6 +1074,7 @@ function buildMoveReview(preMoveContext, postMoveAnalysis) {
             playedNotation: preMoveContext.playedNotation,
             playedMove,
             bestMove,
+            moveFen: preMoveContext.preMoveAnalysis.fen,
             centipawnLoss,
             preferredIdea,
             playedIdea,
@@ -1046,9 +1083,9 @@ function buildMoveReview(preMoveContext, postMoveAnalysis) {
     };
 }
 
-function buildReviewText({ quality, playedNotation, playedMove, bestMove, centipawnLoss, preferredIdea, playedIdea, postMoveAnalysis }) {
-    const notation = playedNotation || formatEngineMove(playedMove);
-    const bestLabel = formatEngineMove(bestMove);
+function buildReviewText({ quality, playedNotation, playedMove, bestMove, moveFen, centipawnLoss, preferredIdea, playedIdea, postMoveAnalysis }) {
+    const notation = playedNotation || formatEngineMove(playedMove, moveFen || buildFenFromCurrentState());
+    const bestLabel = formatEngineMove(bestMove, moveFen || buildFenFromCurrentState());
     const afterLine = postMoveAnalysis?.lines?.[0];
     const opponentMate = afterLine?.scoreType === "mate" && afterLine.scoreValue > 0;
 
@@ -1187,11 +1224,36 @@ function buildMoveUci(moveMeta) {
     return `${from}${to}${promotion}`;
 }
 
-function formatEngineMove(moveUci) {
-    const parsed = parseUciMove(moveUci);
-    if (!parsed) return "--";
+function formatEngineMove(moveUci, fen = buildFenFromCurrentState()) {
+    const position = parseFenPosition(fen);
+    if (!position) return "--";
 
-    return `${toAlgebraic(parsed.fromRow, parsed.fromCol)}-${toAlgebraic(parsed.toRow, parsed.toCol)}${parsed.promotion ? `=${parsed.promotion.toUpperCase()}` : ""}`;
+    return formatMoveOnBoard(moveUci, position.board, position.enPassantTarget);
+}
+
+function formatEnginePv(pv, fen, moveLimit = 4) {
+    const position = parseFenPosition(fen);
+    if (!position) return "";
+
+    const board = cloneBoard(position.board);
+    let enPassantTarget = cloneEnPassantTarget(position.enPassantTarget);
+
+    return (pv || []).slice(0, moveLimit).map((moveUci) => {
+        const notation = formatMoveOnBoard(moveUci, board, enPassantTarget);
+        const parsed = parseUciMove(moveUci);
+        if (parsed) {
+            const moveMeta = createMoveMetaFromBoard(board, parsed, enPassantTarget);
+            if (moveMeta) {
+                applySimpleMoveToBoard(board, moveMeta);
+                enPassantTarget = getEnPassantTargetForMove(moveMeta);
+            } else {
+                enPassantTarget = null;
+            }
+        } else {
+            enPassantTarget = null;
+        }
+        return notation;
+    }).filter(Boolean).join("  ");
 }
 
 function parseUciMove(moveUci) {
@@ -1211,6 +1273,194 @@ function parseUciMove(moveUci) {
         toCol,
         promotion: moveUci[4] || ""
     };
+}
+
+function parseFenPosition(fen) {
+    if (!fen) return null;
+
+    const parts = fen.split(" ");
+    return {
+        board: boardFromFen(fen),
+        enPassantTarget: parseFenEnPassant(parts[3])
+    };
+}
+
+function parseFenEnPassant(token) {
+    if (!token || token === "-") return null;
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    const col = files.indexOf(token[0]);
+    const rank = Number(token[1]);
+    if (col < 0 || Number.isNaN(rank)) return null;
+
+    return {
+        targetRow: 8 - rank,
+        targetCol: col
+    };
+}
+
+function formatMoveOnBoard(moveUci, board, enPassantTarget = null) {
+    const parsed = parseUciMove(moveUci);
+    if (!parsed || !board) return "--";
+
+    const moveMeta = createMoveMetaFromBoard(board, parsed, enPassantTarget);
+    if (!moveMeta) return "--";
+    return buildSanLikeNotation(moveMeta, board);
+}
+
+function createMoveMetaFromBoard(board, parsedMove, enPassantTarget = null) {
+    const piece = board?.[parsedMove.fromRow]?.[parsedMove.fromCol];
+    if (!piece) return null;
+
+    const targetPiece = board?.[parsedMove.toRow]?.[parsedMove.toCol] || "";
+    const isCastle = piece[1] === "k" && Math.abs(parsedMove.toCol - parsedMove.fromCol) === 2;
+    const isEnPassant = piece[1] === "p"
+        && parsedMove.fromCol !== parsedMove.toCol
+        && !targetPiece
+        && enPassantTarget
+        && enPassantTarget.targetRow === parsedMove.toRow
+        && enPassantTarget.targetCol === parsedMove.toCol;
+
+    const moveMeta = {
+        piece,
+        fromRow: parsedMove.fromRow,
+        fromCol: parsedMove.fromCol,
+        toRow: parsedMove.toRow,
+        toCol: parsedMove.toCol,
+        captured: isEnPassant ? board[parsedMove.fromRow][parsedMove.toCol] : (targetPiece || null),
+        promotedTo: parsedMove.promotion ? `${piece[0]}${parsedMove.promotion.toLowerCase()}` : null,
+        castleSide: null,
+        rookMove: null,
+        enPassantCapture: null
+    };
+
+    if (isCastle) {
+        const rookFromCol = parsedMove.toCol > parsedMove.fromCol ? 7 : 0;
+        const rookToCol = parsedMove.toCol > parsedMove.fromCol ? parsedMove.toCol - 1 : parsedMove.toCol + 1;
+        moveMeta.castleSide = parsedMove.toCol > parsedMove.fromCol ? "king" : "queen";
+        moveMeta.rookMove = {
+            piece: piece.startsWith("w") ? "wr" : "br",
+            fromRow: parsedMove.fromRow,
+            fromCol: rookFromCol,
+            toRow: parsedMove.fromRow,
+            toCol: rookToCol
+        };
+    }
+
+    if (isEnPassant) {
+        moveMeta.enPassantCapture = {
+            row: parsedMove.fromRow,
+            col: parsedMove.toCol,
+            piece: board[parsedMove.fromRow][parsedMove.toCol]
+        };
+    }
+
+    return moveMeta;
+}
+
+function buildSanLikeNotation(moveMeta, board) {
+    if (moveMeta.castleSide) {
+        return moveMeta.castleSide === "king" ? "O-O" : "O-O-O";
+    }
+
+    const { piece, fromRow, fromCol, toRow, toCol, captured, promotedTo } = moveMeta;
+    const isPawn = piece[1] === "p";
+    const pieceLetter = isPawn ? "" : piece[1].toUpperCase();
+    const captureMark = captured ? "x" : "";
+    const targetSquare = toAlgebraic(toRow, toCol);
+    const promotionMark = promotedTo ? `=${promotedTo[1].toUpperCase()}` : "";
+
+    if (isPawn) {
+        const pawnPrefix = captured ? toAlgebraic(fromRow, fromCol)[0] : "";
+        return `${pawnPrefix}${captureMark}${targetSquare}${promotionMark}`;
+    }
+
+    const disambiguation = getNotationDisambiguation(board, moveMeta);
+    return `${pieceLetter}${disambiguation}${captureMark}${targetSquare}${promotionMark}`;
+}
+
+function getNotationDisambiguation(board, moveMeta) {
+    const { piece, fromRow, fromCol, toRow, toCol } = moveMeta;
+    const contenders = [];
+
+    for (let row = 0; row < 8; row += 1) {
+        for (let col = 0; col < 8; col += 1) {
+            if (row === fromRow && col === fromCol) continue;
+            if (board[row][col] !== piece) continue;
+            if (canPieceReachTargetForNotation(board, piece, row, col, toRow, toCol)) {
+                contenders.push({ row, col });
+            }
+        }
+    }
+
+    return contenders.length > 0 ? toAlgebraic(fromRow, fromCol) : "";
+}
+
+function canPieceReachTargetForNotation(board, piece, fromRow, fromCol, toRow, toCol) {
+    if (!board || !piece) return false;
+    if (fromRow === toRow && fromCol === toCol) return false;
+
+    const target = board[toRow]?.[toCol] || "";
+    if (target && target.startsWith(piece[0])) return false;
+
+    const rowDiff = toRow - fromRow;
+    const colDiff = toCol - fromCol;
+    const absRow = Math.abs(rowDiff);
+    const absCol = Math.abs(colDiff);
+
+    if (piece[1] === "n") {
+        return (absRow === 2 && absCol === 1) || (absRow === 1 && absCol === 2);
+    }
+
+    if (piece[1] === "b") {
+        return absRow === absCol && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    }
+
+    if (piece[1] === "r") {
+        return (fromRow === toRow || fromCol === toCol) && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    }
+
+    if (piece[1] === "q") {
+        const diagonal = absRow === absCol;
+        const straight = fromRow === toRow || fromCol === toCol;
+        return (diagonal || straight) && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    }
+
+    if (piece[1] === "k") {
+        return absRow <= 1 && absCol <= 1;
+    }
+
+    return false;
+}
+
+function isPathClear(board, fromRow, fromCol, toRow, toCol) {
+    const rowStep = Math.sign(toRow - fromRow);
+    const colStep = Math.sign(toCol - fromCol);
+    let row = fromRow + rowStep;
+    let col = fromCol + colStep;
+
+    while (row !== toRow || col !== toCol) {
+        if (board[row]?.[col]) return false;
+        row += rowStep;
+        col += colStep;
+    }
+
+    return true;
+}
+
+function applySimpleMoveToBoard(board, moveMeta) {
+    if (!board || !moveMeta) return;
+
+    board[moveMeta.fromRow][moveMeta.fromCol] = "";
+    board[moveMeta.toRow][moveMeta.toCol] = moveMeta.promotedTo || moveMeta.piece;
+
+    if (moveMeta.enPassantCapture) {
+        board[moveMeta.enPassantCapture.row][moveMeta.enPassantCapture.col] = "";
+    }
+
+    if (moveMeta.rookMove) {
+        board[moveMeta.rookMove.fromRow][moveMeta.rookMove.fromCol] = "";
+        board[moveMeta.rookMove.toRow][moveMeta.rookMove.toCol] = moveMeta.rookMove.piece;
+    }
 }
 
 function buildFenFromCurrentState() {
@@ -1320,14 +1570,11 @@ function showGameOver(winnerColor, reason = "Checkmate") {
     clearCoachAnalysisTimer();
     coachEngine?.stop();
 
-    const overlay = document.getElementById("gameOverlay");
     const text = document.getElementById("overlayText");
     if (text) {
         text.textContent = `${reason} - ${winnerColor} wins`;
     }
-    if (overlay) {
-        overlay.classList.remove("hidden");
-    }
+    showGameOverlay();
 
     saveGameResult(winnerColor);
 }
@@ -1339,16 +1586,27 @@ function showDraw(reason = "Draw") {
     clearCoachAnalysisTimer();
     coachEngine?.stop();
 
-    const overlay = document.getElementById("gameOverlay");
     const text = document.getElementById("overlayText");
     if (text) {
         text.textContent = reason;
     }
+    showGameOverlay();
+
+    saveGameResult("Draw");
+}
+
+function showGameOverlay() {
+    const overlay = document.getElementById("gameOverlay");
     if (overlay) {
         overlay.classList.remove("hidden");
     }
+}
 
-    saveGameResult("Draw");
+function hideGameOverlay() {
+    const overlay = document.getElementById("gameOverlay");
+    if (overlay) {
+        overlay.classList.add("hidden");
+    }
 }
 
 function toAlgebraic(row, col) {
@@ -1367,6 +1625,7 @@ function finalizeMoveRecord(moveMeta) {
     const pieceImg = document.createElement("img");
     pieceImg.src = `src/assets/pieces/${pieceMap[piece]}`;
     pieceImg.alt = piece;
+    decorateUiPieceIcon(pieceImg, piece, "move-piece-icon");
 
     if (currentTurn === "white") {
         const rowDiv = document.createElement("div");
