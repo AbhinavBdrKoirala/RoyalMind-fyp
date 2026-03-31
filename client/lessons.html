@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoyalMind - Lessons</title>
+    <link rel="icon" type="image/png" href="src/assets/pieces/main.png?v=2">
+    <link rel="apple-touch-icon" href="src/assets/pieces/main.png?v=2">
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body class="premium-page lessons-page">
+    <header class="premium-header">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">&#9818;</span>
+            <span class="brand-text">RoyalMind</span>
+        </div>
+        <nav class="premium-nav">
+            <a class="premium-link" href="dashboard.html">Back to Dashboard</a>
+            <a class="premium-link" href="subscription.html">Subscription</a>
+            <a class="premium-link" href="puzzles.html">Puzzles</a>
+        </nav>
+    </header>
+
+    <main class="premium-shell">
+        <section class="premium-hero-card">
+            <p class="premium-kicker">Lesson Library</p>
+            <h1>Curated YouTube learning paths</h1>
+            <p id="lessonMembershipNote" class="premium-subtext">Loading lesson access.</p>
+        </section>
+
+        <section id="lessonGrid" class="premium-grid lesson-grid"></section>
+    </main>
+
+    <script src="src/ui.js"></script>
+    <script src="src/lessons.js"></script>
+</body>
+</html>

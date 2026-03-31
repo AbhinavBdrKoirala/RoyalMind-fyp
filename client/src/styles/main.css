@@ -2867,6 +2867,281 @@ body.game-page .promotion-container {
 }
 
 /* ===============================
+   Premium Pages
+================================ */
+
+body.premium-page {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    background:
+        radial-gradient(circle at 16% 18%, rgba(111, 154, 83, 0.22), transparent 48%),
+        radial-gradient(circle at 84% 82%, rgba(38, 54, 45, 0.45), transparent 52%),
+        linear-gradient(180deg, #111814 0%, #0d1210 100%);
+    color: #f1f5ec;
+}
+
+.premium-header {
+    width: min(1280px, 96%);
+    margin: 16px auto 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.premium-nav {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.premium-link {
+    text-decoration: none;
+    font-weight: 700;
+    color: #d9e6cf;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(220, 231, 208, 0.18);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.premium-shell {
+    width: min(1280px, 96%);
+    margin: 20px auto 40px;
+    display: grid;
+    gap: 18px;
+}
+
+.premium-hero-card,
+.premium-card {
+    border-radius: 18px;
+    background: linear-gradient(180deg, rgba(19, 25, 17, 0.94), rgba(14, 19, 13, 0.92));
+    border: 1px solid rgba(220, 231, 208, 0.12);
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.3);
+}
+
+.premium-hero-card {
+    padding: 22px;
+}
+
+.premium-kicker,
+.premium-section-label {
+    margin: 0 0 8px;
+    color: #9fb58d;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.premium-hero-card h1,
+.premium-card h2 {
+    margin: 0;
+}
+
+.premium-subtext,
+.premium-muted,
+.premium-footnote {
+    color: #c2d0b8;
+    line-height: 1.5;
+}
+
+.premium-grid {
+    display: grid;
+    gap: 18px;
+}
+
+.premium-grid.two-column {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.premium-card {
+    padding: 18px;
+}
+
+.premium-card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.premium-actions-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 14px;
+}
+
+.premium-primary-btn,
+.premium-secondary-btn,
+.premium-primary-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    padding: 11px 18px;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.premium-primary-btn,
+.premium-primary-link {
+    border: 0;
+    color: #121a0f;
+    background: linear-gradient(180deg, #97bf73, #769f52);
+}
+
+.premium-secondary-btn {
+    color: #dce7d3;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(220, 231, 208, 0.18);
+}
+
+.premium-feature-list {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 8px;
+    color: #e7efe1;
+}
+
+.premium-plan-list,
+.premium-list {
+    display: grid;
+    gap: 12px;
+}
+
+.premium-plan-card,
+.premium-list-item {
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(220, 231, 208, 0.08);
+}
+
+.premium-plan-card {
+    display: grid;
+    gap: 6px;
+    margin-top: 16px;
+}
+
+.premium-list-item {
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+}
+
+.premium-list-item strong,
+.premium-plan-card strong {
+    font-size: 17px;
+    color: #f1f5ec;
+}
+
+.premium-list-item span,
+.premium-list-item small,
+.premium-plan-card span,
+.premium-plan-card p {
+    color: #c2d0b8;
+}
+
+.premium-list-item.locked,
+.lesson-card.locked {
+    opacity: 0.82;
+    border-color: rgba(199, 167, 72, 0.24);
+}
+
+.premium-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1px solid rgba(220, 231, 208, 0.14);
+    background: rgba(255, 255, 255, 0.04);
+    color: #dce7d3;
+}
+
+.premium-badge.premium {
+    background: rgba(199, 167, 72, 0.14);
+    border-color: rgba(199, 167, 72, 0.24);
+    color: #f0e1a2;
+}
+
+.puzzle-layout {
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+}
+
+.premium-board-wrap {
+    display: grid;
+    place-items: center;
+    margin-top: 10px;
+}
+
+.premium-puzzle-board {
+    width: min(520px, 100%);
+}
+
+.premium-puzzle-square {
+    border: 0;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    width: 100%;
+    height: 100%;
+}
+
+.premium-status-banner,
+.premium-solution,
+.premium-lock-callout {
+    margin-top: 14px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    border: 1px solid rgba(220, 231, 208, 0.12);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.premium-status-banner.tone-success {
+    color: #dff1d1;
+    background: rgba(112, 163, 76, 0.16);
+    border-color: rgba(133, 189, 92, 0.28);
+}
+
+.premium-status-banner.tone-warning {
+    color: #ffe8c0;
+    background: rgba(183, 128, 43, 0.14);
+    border-color: rgba(214, 161, 67, 0.24);
+}
+
+.lesson-grid {
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+@media (max-width: 980px) {
+    .premium-grid.two-column,
+    .puzzle-layout {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 680px) {
+    .premium-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .premium-card-head {
+        flex-direction: column;
+    }
+}
+
+/* ===============================
    Settings Page
 ================================ */
 

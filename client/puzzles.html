@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoyalMind - Puzzles</title>
+    <link rel="icon" type="image/png" href="src/assets/pieces/main.png?v=2">
+    <link rel="apple-touch-icon" href="src/assets/pieces/main.png?v=2">
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body class="premium-page puzzles-page">
+    <header class="premium-header">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">&#9818;</span>
+            <span class="brand-text">RoyalMind</span>
+        </div>
+        <nav class="premium-nav">
+            <a class="premium-link" href="dashboard.html">Back to Dashboard</a>
+            <a class="premium-link" href="subscription.html">Subscription</a>
+            <a class="premium-link" href="lessons.html">Lessons</a>
+        </nav>
+    </header>
+
+    <main class="premium-shell">
+        <section class="premium-hero-card">
+            <p class="premium-kicker">Puzzle Trainer</p>
+            <h1>Daily tactics and premium challenges</h1>
+            <p id="puzzleMembershipNote" class="premium-subtext">Loading your puzzle access.</p>
+        </section>
+
+        <section class="premium-grid puzzle-layout">
+            <aside class="premium-card puzzle-list-card">
+                <div class="premium-card-head">
+                    <div>
+                        <p class="premium-section-label">Puzzle List</p>
+                        <h2>Choose a position</h2>
+                    </div>
+                </div>
+                <div id="puzzleList" class="premium-list"></div>
+            </aside>
+
+            <section class="premium-card puzzle-board-card">
+                <div class="premium-card-head">
+                    <div>
+                        <p class="premium-section-label">Puzzle Board</p>
+                        <h2 id="puzzleTitle">Select a puzzle</h2>
+                    </div>
+                    <button id="showSolutionBtn" class="premium-secondary-btn hidden" type="button">Show Solution</button>
+                </div>
+                <p id="puzzleDescription" class="premium-muted">Open a puzzle from the left to start solving.</p>
+                <div id="puzzleBoardWrap" class="premium-board-wrap hidden">
+                    <div id="puzzleBoard" class="history-board premium-puzzle-board"></div>
+                </div>
+                <div id="puzzleStatus" class="premium-status-banner hidden"></div>
+                <div id="puzzleSolution" class="premium-solution hidden"></div>
+                <div id="lockedPuzzleCta" class="premium-lock-callout hidden">
+                    <p>This puzzle is part of Premium.</p>
+                    <a class="premium-primary-link" href="subscription.html">Unlock Premium</a>
+                </div>
+            </section>
+        </section>
+    </main>
+
+    <script src="src/ui.js"></script>
+    <script src="src/puzzles.js"></script>
+</body>
+</html>

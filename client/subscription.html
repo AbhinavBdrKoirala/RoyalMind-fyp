@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RoyalMind - Subscription</title>
+    <link rel="icon" type="image/png" href="src/assets/pieces/main.png?v=2">
+    <link rel="apple-touch-icon" href="src/assets/pieces/main.png?v=2">
+    <link rel="stylesheet" href="src/styles/main.css">
+</head>
+<body class="premium-page subscription-page">
+    <header class="premium-header">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">&#9818;</span>
+            <span class="brand-text">RoyalMind</span>
+        </div>
+        <nav class="premium-nav">
+            <a class="premium-link" href="dashboard.html">Back to Dashboard</a>
+            <a class="premium-link" href="puzzles.html">Puzzles</a>
+            <a class="premium-link" href="lessons.html">Lessons</a>
+        </nav>
+    </header>
+
+    <main class="premium-shell">
+        <section class="premium-hero-card">
+            <p class="premium-kicker">Premium Access</p>
+            <h1>Unlock puzzles and lesson collections</h1>
+            <p class="premium-subtext">This MVP version uses a manual premium switch so we can build and test the full flow before payment is added.</p>
+        </section>
+
+        <section class="premium-grid two-column">
+            <article class="premium-card">
+                <p class="premium-section-label">Your Status</p>
+                <h2 id="subscriptionStatusTitle">Checking access...</h2>
+                <p id="subscriptionStatusText" class="premium-muted">Loading your current membership.</p>
+                <div class="premium-actions-row">
+                    <button id="subscriptionPrimaryBtn" class="premium-primary-btn" type="button">Loading...</button>
+                    <button id="subscriptionSecondaryBtn" class="premium-secondary-btn hidden" type="button">Cancel Premium</button>
+                </div>
+                <p class="premium-footnote">When Stripe is added later, this button can be swapped for real checkout without rebuilding the whole content system.</p>
+            </article>
+
+            <article class="premium-card">
+                <p class="premium-section-label">Included</p>
+                <ul class="premium-feature-list">
+                    <li>Premium-only tactical puzzles</li>
+                    <li>Curated YouTube lesson collections</li>
+                    <li>One place to browse practice content</li>
+                </ul>
+                <div id="subscriptionPlanList" class="premium-plan-list"></div>
+            </article>
+        </section>
+    </main>
+
+    <script src="src/ui.js"></script>
+    <script src="src/subscription.js"></script>
+</body>
+</html>
