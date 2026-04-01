@@ -21,6 +21,16 @@ const DEFAULT_PUZZLES = [
         is_premium: false
     },
     {
+        slug: "rook-lift-1",
+        title: "Rook Lift",
+        description: "White to move and deliver a clean rook checkmate.",
+        fen: "6k1/8/6K1/8/8/8/8/6R1 w - - 0 1",
+        solution_moves: ["g1g8"],
+        difficulty: "Beginner",
+        theme: "Back Rank",
+        is_premium: false
+    },
+    {
         slug: "corner-squeeze",
         title: "Corner Squeeze",
         description: "Find the precise queen move that ends the game.",
@@ -31,6 +41,26 @@ const DEFAULT_PUZZLES = [
         is_premium: true
     },
     {
+        slug: "bishop-diagonal",
+        title: "Bishop Diagonal",
+        description: "Spot the bishop move that mates the king from long range.",
+        fen: "7k/6Q1/6K1/8/2B5/8/8/8 w - - 0 1",
+        solution_moves: ["c4g8"],
+        difficulty: "Intermediate",
+        theme: "Mate in 1",
+        is_premium: true
+    },
+    {
+        slug: "queen-slide",
+        title: "Queen Slide",
+        description: "Use the queen to seal every escape square in one move.",
+        fen: "7k/8/6QK/8/8/8/8/8 w - - 0 1",
+        solution_moves: ["g6g7"],
+        difficulty: "Intermediate",
+        theme: "King Hunt",
+        is_premium: true
+    },
+    {
         slug: "rook-finish",
         title: "Rook Finish",
         description: "Use the rook to force checkmate in one move.",
@@ -38,6 +68,16 @@ const DEFAULT_PUZZLES = [
         solution_moves: ["g1g8"],
         difficulty: "Intermediate",
         theme: "Back Rank",
+        is_premium: true
+    },
+    {
+        slug: "ladder-mate",
+        title: "Ladder Mate",
+        description: "The heavy piece coordination is ready. Find the finishing rook move.",
+        fen: "6k1/5ppp/6K1/8/8/8/5R2/6R1 w - - 0 1",
+        solution_moves: ["g1g8"],
+        difficulty: "Advanced",
+        theme: "Technique",
         is_premium: true
     }
 ];
@@ -72,6 +112,36 @@ const DEFAULT_VIDEO_LESSONS = [
         category: "Endgames",
         is_premium: true,
         sort_order: 3
+    },
+    {
+        slug: "attacking-the-king",
+        title: "Attacking The King",
+        description: "A curated lesson path for mating attacks, piece coordination, and direct king pressure.",
+        youtube_url: "https://www.youtube.com/results?search_query=chess+attacking+the+king+tutorial",
+        youtube_video_id: null,
+        category: "Attack",
+        is_premium: true,
+        sort_order: 4
+    },
+    {
+        slug: "positional-chess",
+        title: "Positional Chess",
+        description: "Curated results around weak squares, outposts, piece activity, and long-term planning.",
+        youtube_url: "https://www.youtube.com/results?search_query=positional+chess+strategy+tutorial",
+        youtube_video_id: null,
+        category: "Strategy",
+        is_premium: true,
+        sort_order: 5
+    },
+    {
+        slug: "defensive-skills",
+        title: "Defensive Skills",
+        description: "Curated lessons on defending tough positions, reducing counterplay, and surviving pressure.",
+        youtube_url: "https://www.youtube.com/results?search_query=chess+defense+tutorial",
+        youtube_video_id: null,
+        category: "Defense",
+        is_premium: true,
+        sort_order: 6
     }
 ];
 

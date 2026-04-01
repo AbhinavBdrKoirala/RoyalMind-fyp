@@ -36,6 +36,7 @@
                 <div class="premium-actions-row">
                     <button id="subscriptionPrimaryBtn" class="premium-primary-btn" type="button">Loading...</button>
                     <button id="subscriptionSecondaryBtn" class="premium-secondary-btn hidden" type="button">Cancel Premium</button>
+                    <a class="premium-secondary-link" href="lessons.html">View Lessons</a>
                 </div>
                 <p class="premium-footnote">When Stripe is added later, this button can be swapped for real checkout without rebuilding the whole content system.</p>
             </article>
@@ -48,6 +49,66 @@
                     <li>One place to browse practice content</li>
                 </ul>
                 <div id="subscriptionPlanList" class="premium-plan-list"></div>
+            </article>
+        </section>
+
+        <section class="premium-grid two-column">
+            <article class="premium-card">
+                <div class="premium-card-head">
+                    <div>
+                        <p class="premium-section-label">What You Get</p>
+                        <h2>Built-in content library</h2>
+                    </div>
+                </div>
+                <div id="subscriptionContentStats" class="premium-stat-grid">
+                    <div class="premium-stat-card">
+                        <strong>Loading...</strong>
+                        <span>Puzzle catalog</span>
+                    </div>
+                    <div class="premium-stat-card">
+                        <strong>Loading...</strong>
+                        <span>Lesson library</span>
+                    </div>
+                </div>
+                <p class="premium-footnote">This version ships with curated database content, so you can use premium features immediately without needing an admin panel.</p>
+            </article>
+
+            <article class="premium-card">
+                <div class="premium-card-head">
+                    <div>
+                        <p class="premium-section-label">How It Works</p>
+                        <h2>No admin required</h2>
+                    </div>
+                </div>
+                <ul class="premium-feature-list">
+                    <li>Puzzles are stored as FEN positions plus solution moves in PostgreSQL.</li>
+                    <li>Lesson entries are stored as YouTube metadata and links, not video files.</li>
+                    <li>You can keep growing the subscription catalog directly from code or the database for now.</li>
+                </ul>
+            </article>
+        </section>
+
+        <section class="premium-grid two-column">
+            <article class="premium-card">
+                <div class="premium-card-head">
+                    <div>
+                        <p class="premium-section-label">Puzzle Preview</p>
+                        <h2>Included tactical training</h2>
+                    </div>
+                    <a class="premium-secondary-link" href="puzzles.html">Open Puzzles</a>
+                </div>
+                <div id="subscriptionPuzzlePreview" class="premium-list"></div>
+            </article>
+
+            <article class="premium-card">
+                <div class="premium-card-head">
+                    <div>
+                        <p class="premium-section-label">Lesson Preview</p>
+                        <h2>Included YouTube paths</h2>
+                    </div>
+                    <a class="premium-secondary-link" href="lessons.html">Open Lessons</a>
+                </div>
+                <div id="subscriptionLessonPreview" class="premium-list"></div>
             </article>
         </section>
     </main>

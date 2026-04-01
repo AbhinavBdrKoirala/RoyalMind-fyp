@@ -141,6 +141,11 @@ function getSideToMove(fen) {
     return String(fen || "").split(" ")[1] === "b" ? "black" : "white";
 }
 
+function shouldShowCoordinates() {
+    const settings = getStoredSettings();
+    return settings.boardCoordinates !== "Hide";
+}
+
 function renderPuzzleList(puzzles) {
     if (!puzzleList) return;
     puzzleList.innerHTML = puzzles.map((puzzle) => `
@@ -167,6 +172,8 @@ function clearPuzzleMessage() {
 function renderPuzzleBoard() {
     if (!puzzleBoard || !Array.isArray(puzzleBoardState)) return;
     puzzleBoard.innerHTML = "";
+    const showCoordinates = shouldShowCoordinates();
+    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
 
     for (let row = 0; row < 8; row += 1) {
         for (let col = 0; col < 8; col += 1) {
@@ -179,6 +186,20 @@ function renderPuzzleBoard() {
 
             if (selectedSquare && selectedSquare.row === row && selectedSquare.col === col) {
                 square.classList.add("selected");
+            }
+
+            if (showCoordinates && row === 7) {
+                const fileLabel = document.createElement("span");
+                fileLabel.className = "square-label file-label";
+                fileLabel.textContent = files[col];
+                square.appendChild(fileLabel);
+            }
+
+            if (showCoordinates && col === 0) {
+                const rankLabel = document.createElement("span");
+                rankLabel.className = "square-label rank-label";
+                rankLabel.textContent = String(8 - row);
+                square.appendChild(rankLabel);
             }
 
             const piece = puzzleBoardState[row][col];

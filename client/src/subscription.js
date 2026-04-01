@@ -10,6 +10,9 @@ const statusText = document.getElementById("subscriptionStatusText");
 const planList = document.getElementById("subscriptionPlanList");
 const primaryButton = document.getElementById("subscriptionPrimaryBtn");
 const secondaryButton = document.getElementById("subscriptionSecondaryBtn");
+const contentStats = document.getElementById("subscriptionContentStats");
+const puzzlePreview = document.getElementById("subscriptionPuzzlePreview");
+const lessonPreview = document.getElementById("subscriptionLessonPreview");
 
 if (!token) {
     appUi.notify("Please log in to manage subscription access.", {
@@ -77,6 +80,44 @@ function renderPlans(plans) {
             <span>${escapeHtml(plan.priceLabel || "")}</span>
             <p>${escapeHtml(plan.description || "")}</p>
         </div>
+    `).join("");
+}
+
+function renderContentStats(puzzles, lessons) {
+    if (!contentStats) return;
+
+    const puzzleListSafe = Array.isArray(puzzles) ? puzzles : [];
+    const lessonListSafe = Array.isArray(lessons) ? lessons : [];
+    const premiumPuzzleCount = puzzleListSafe.filter((item) => item.isPremium).length;
+    const premiumLessonCount = lessonListSafe.filter((item) => item.isPremium).length;
+
+    contentStats.innerHTML = `
+        <div class="premium-stat-card">
+            <strong>${puzzleListSafe.length}</strong>
+            <span>${premiumPuzzleCount} premium puzzle${premiumPuzzleCount === 1 ? "" : "s"} included</span>
+        </div>
+        <div class="premium-stat-card">
+            <strong>${lessonListSafe.length}</strong>
+            <span>${premiumLessonCount} premium lesson collection${premiumLessonCount === 1 ? "" : "s"} included</span>
+        </div>
+    `;
+}
+
+function renderPreviewList(target, items, kind) {
+    if (!target) return;
+
+    const previewItems = (Array.isArray(items) ? items : []).slice(0, 4);
+    if (previewItems.length === 0) {
+        target.innerHTML = `<p class="premium-muted">No ${kind} preview is available yet.</p>`;
+        return;
+    }
+
+    target.innerHTML = previewItems.map((item) => `
+        <article class="premium-list-item${item.locked ? " locked" : ""}">
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.theme || item.category || kind)}</span>
+            <small>${item.locked ? "Premium" : "Open now"}</small>
+        </article>
     `).join("");
 }
 
@@ -190,37 +231,50 @@ function renderStatus(subscription) {
 async function hydrateSubscription() {
     setLoadingState("Loading...");
 
-    const [plansResponse, meResponse] = await Promise.all([
+    const [plansResponse, meResponse, puzzlesResponse, lessonsResponse] = await Promise.all([
         apiFetch("/api/subscription/plans"),
-        apiFetch("/api/subscription/me")
+        apiFetch("/api/subscription/me"),
+        apiFetch("/api/premium/puzzles"),
+        apiFetch("/api/premium/videos")
     ]);
 
-    if (!plansResponse || !meResponse) {
+    if (!plansResponse || !meResponse || !puzzlesResponse || !lessonsResponse) {
         if (statusTitle) statusTitle.textContent = "Subscription unavailable";
         if (statusText) statusText.textContent = "The subscription service could not be loaded right now.";
         if (planList) planList.innerHTML = "";
+        if (puzzlePreview) puzzlePreview.innerHTML = "";
+        if (lessonPreview) lessonPreview.innerHTML = "";
         return;
     }
 
     if (
         plansResponse.status === 401 || plansResponse.status === 403 ||
-        meResponse.status === 401 || meResponse.status === 403
+        meResponse.status === 401 || meResponse.status === 403 ||
+        puzzlesResponse.status === 401 || puzzlesResponse.status === 403 ||
+        lessonsResponse.status === 401 || lessonsResponse.status === 403
     ) {
         redirectToLogin("Your session expired. Please log in again.");
         return;
     }
 
-    if (!plansResponse.ok || !meResponse.ok) {
+    if (!plansResponse.ok || !meResponse.ok || !puzzlesResponse.ok || !lessonsResponse.ok) {
         if (statusTitle) statusTitle.textContent = "Subscription unavailable";
         if (statusText) statusText.textContent = "The subscription service could not be loaded right now.";
         if (planList) planList.innerHTML = "";
+        if (puzzlePreview) puzzlePreview.innerHTML = "";
+        if (lessonPreview) lessonPreview.innerHTML = "";
         return;
     }
 
     const plansData = await plansResponse.json();
     const meData = await meResponse.json();
+    const puzzlesData = await puzzlesResponse.json();
+    const lessonsData = await lessonsResponse.json();
     renderPlans(plansData.plans || []);
     renderStatus(meData.subscription || null);
+    renderContentStats(puzzlesData.puzzles || [], lessonsData.lessons || []);
+    renderPreviewList(puzzlePreview, puzzlesData.puzzles || [], "puzzles");
+    renderPreviewList(lessonPreview, lessonsData.lessons || [], "lessons");
 }
 
 function escapeHtml(value) {
