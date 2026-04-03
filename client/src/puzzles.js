@@ -3,6 +3,8 @@ const API_BASES = ["http://127.0.0.1:7000", "http://localhost:7000"];
 const appUi = window.RoyalMindUI || {
     notify: () => {}
 };
+const FILES = ["a", "b", "c", "d", "e", "f", "g", "h"];
+const RANKS = ["8", "7", "6", "5", "4", "3", "2", "1"];
 
 const puzzleMembershipNote = document.getElementById("puzzleMembershipNote");
 const puzzleList = document.getElementById("puzzleList");
@@ -10,8 +12,13 @@ const puzzleTitle = document.getElementById("puzzleTitle");
 const puzzleDescription = document.getElementById("puzzleDescription");
 const puzzleBoardWrap = document.getElementById("puzzleBoardWrap");
 const puzzleBoard = document.getElementById("puzzleBoard");
+const puzzleRanks = document.getElementById("puzzleRanks");
+const puzzleFiles = document.getElementById("puzzleFiles");
 const puzzleStatus = document.getElementById("puzzleStatus");
 const puzzleSolution = document.getElementById("puzzleSolution");
+const puzzleMeta = document.getElementById("puzzleMeta");
+const puzzleSourceRow = document.getElementById("puzzleSourceRow");
+const puzzleSourceLink = document.getElementById("puzzleSourceLink");
 const showSolutionBtn = document.getElementById("showSolutionBtn");
 const lockedPuzzleCta = document.getElementById("lockedPuzzleCta");
 
@@ -32,8 +39,10 @@ const pieceMap = {
 
 let currentPuzzle = null;
 let puzzleBoardState = null;
+let puzzlePosition = null;
 let selectedSquare = null;
 let premiumUnlocked = false;
+let puzzleSolved = false;
 
 if (!token) {
     appUi.notify("Please log in to access puzzles.", {
@@ -74,6 +83,10 @@ function normalizeAppearanceToken(value, fallback) {
         .replace(/^-+|-+$/g, "");
 
     return normalized || fallback;
+}
+
+function cloneBoard(board) {
+    return Array.isArray(board) ? board.map((row) => [...row]) : [];
 }
 
 function applyAppearanceSettings() {
@@ -137,13 +150,84 @@ function parseFenBoard(fen) {
     });
 }
 
-function getSideToMove(fen) {
-    return String(fen || "").split(" ")[1] === "b" ? "black" : "white";
+function cloneCastlingRights(rights) {
+    return {
+        white: { ...rights.white },
+        black: { ...rights.black }
+    };
+}
+
+function cloneEnPassantTarget(target) {
+    return target ? { ...target } : null;
+}
+
+function parseFenCastling(castlingToken) {
+    const token = String(castlingToken || "-");
+    return {
+        white: {
+            kingMoved: !(token.includes("K") || token.includes("Q")),
+            rookA: !token.includes("Q"),
+            rookH: !token.includes("K")
+        },
+        black: {
+            kingMoved: !(token.includes("k") || token.includes("q")),
+            rookA: !token.includes("q"),
+            rookH: !token.includes("k")
+        }
+    };
+}
+
+function parseFenEnPassant(token, activeColor) {
+    if (!token || token === "-") return null;
+
+    const col = FILES.indexOf(token[0]);
+    const rank = Number(token[1]);
+    if (col < 0 || Number.isNaN(rank)) return null;
+
+    const targetRow = 8 - rank;
+    const pawnColor = activeColor === "w" ? "black" : "white";
+
+    return {
+        targetRow,
+        targetCol: col,
+        captureRow: pawnColor === "black" ? targetRow + 1 : targetRow - 1,
+        captureCol: col,
+        pawnColor,
+        capturedPiece: pawnColor === "black" ? "bp" : "wp"
+    };
+}
+
+function parseFenPosition(fen) {
+    const parts = String(fen || "").trim().split(/\s+/);
+    if (parts.length < 2) return null;
+
+    const [
+        boardToken,
+        activeColor,
+        castlingToken = "-",
+        enPassantToken = "-",
+        halfmoveClock = "0",
+        fullmoveNumber = "1"
+    ] = parts;
+
+    return {
+        board: parseFenBoard(boardToken),
+        activeColor,
+        castlingRights: parseFenCastling(castlingToken),
+        enPassantTarget: parseFenEnPassant(enPassantToken, activeColor),
+        halfmoveClock: Number(halfmoveClock) || 0,
+        fullmoveNumber: Number(fullmoveNumber) || 1
+    };
 }
 
 function shouldShowCoordinates() {
     const settings = getStoredSettings();
     return settings.boardCoordinates !== "Hide";
+}
+
+function shouldShowLegalHints() {
+    const settings = getStoredSettings();
+    return settings.showLegal !== false;
 }
 
 function renderPuzzleList(puzzles) {
@@ -169,11 +253,83 @@ function clearPuzzleMessage() {
     puzzleStatus.classList.add("hidden");
 }
 
-function renderPuzzleBoard() {
-    if (!puzzleBoard || !Array.isArray(puzzleBoardState)) return;
-    puzzleBoard.innerHTML = "";
+function renderPuzzleMeta(puzzle, position = puzzlePosition) {
+    if (!puzzleMeta) return;
+
+    const chips = [];
+    if (position?.activeColor) {
+        chips.push(`<span class="premium-badge premium">${position.activeColor === "w" ? "White to move" : "Black to move"}</span>`);
+    }
+    chips.push(`<span class="premium-badge">${escapeHtml(puzzle.theme || "Puzzle")}</span>`);
+    if (puzzle.difficulty) {
+        chips.push(`<span class="premium-badge">${escapeHtml(puzzle.difficulty)}</span>`);
+    }
+    if (puzzle.rating) {
+        chips.push(`<span class="premium-badge">Rating ${escapeHtml(puzzle.rating)}</span>`);
+    }
+    if (puzzle.sourceName) {
+        const sourceLabel = puzzle.sourceName === "lichess" ? "Lichess" : "Starter Set";
+        chips.push(`<span class="premium-badge${puzzle.sourceName === "lichess" ? " premium" : ""}">${escapeHtml(sourceLabel)}</span>`);
+    }
+
+    puzzleMeta.innerHTML = chips.join("");
+}
+
+function renderBoardAxes() {
     const showCoordinates = shouldShowCoordinates();
-    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+
+    if (puzzleRanks) {
+        puzzleRanks.innerHTML = showCoordinates
+            ? RANKS.map((rank) => `<span class="puzzle-axis-label">${rank}</span>`).join("")
+            : "";
+        puzzleRanks.classList.toggle("hidden", !showCoordinates);
+    }
+
+    if (puzzleFiles) {
+        puzzleFiles.innerHTML = showCoordinates
+            ? FILES.map((file) => `<span class="puzzle-axis-label">${file}</span>`).join("")
+            : "";
+        puzzleFiles.classList.toggle("hidden", !showCoordinates);
+    }
+}
+
+function getLegalTargets() {
+    const legalTargets = new Set();
+
+    if (!selectedSquare || !puzzlePosition || !shouldShowLegalHints()) {
+        return legalTargets;
+    }
+
+    const piece = puzzlePosition.board[selectedSquare.row]?.[selectedSquare.col];
+    if (!piece) return legalTargets;
+
+    for (let row = 0; row < 8; row += 1) {
+        for (let col = 0; col < 8; col += 1) {
+            if (
+                isValidMoveOnBoard(
+                    puzzlePosition.board,
+                    piece,
+                    selectedSquare.row,
+                    selectedSquare.col,
+                    row,
+                    col,
+                    false,
+                    puzzlePosition
+                )
+            ) {
+                legalTargets.add(`${row}:${col}`);
+            }
+        }
+    }
+
+    return legalTargets;
+}
+
+function renderPuzzleBoard() {
+    if (!puzzleBoard || !Array.isArray(puzzlePosition?.board)) return;
+    puzzleBoard.innerHTML = "";
+    renderBoardAxes();
+    const legalTargets = getLegalTargets();
 
     for (let row = 0; row < 8; row += 1) {
         for (let col = 0; col < 8; col += 1) {
@@ -188,21 +344,19 @@ function renderPuzzleBoard() {
                 square.classList.add("selected");
             }
 
-            if (showCoordinates && row === 7) {
-                const fileLabel = document.createElement("span");
-                fileLabel.className = "square-label file-label";
-                fileLabel.textContent = files[col];
-                square.appendChild(fileLabel);
+            const piece = puzzlePosition.board[row][col];
+            const isLegalTarget = legalTargets.has(`${row}:${col}`);
+            if (isLegalTarget) {
+                square.classList.add("legal-target");
+                if (piece) {
+                    square.classList.add("legal-capture");
+                } else {
+                    const targetDot = document.createElement("span");
+                    targetDot.className = "legal-target-dot";
+                    square.appendChild(targetDot);
+                }
             }
 
-            if (showCoordinates && col === 0) {
-                const rankLabel = document.createElement("span");
-                rankLabel.className = "square-label rank-label";
-                rankLabel.textContent = String(8 - row);
-                square.appendChild(rankLabel);
-            }
-
-            const piece = puzzleBoardState[row][col];
             if (piece) {
                 const img = document.createElement("img");
                 img.src = `src/assets/pieces/${pieceMap[piece]}`;
@@ -217,19 +371,456 @@ function renderPuzzleBoard() {
 }
 
 function toAlgebraic(row, col) {
-    const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
-    return `${files[col]}${8 - row}`;
+    return `${FILES[col]}${8 - row}`;
 }
 
-function buildMoveUci(fromRow, fromCol, toRow, toCol) {
-    return `${toAlgebraic(fromRow, fromCol)}${toAlgebraic(toRow, toCol)}`;
+function buildMoveUci(fromRow, fromCol, toRow, toCol, promotion = "") {
+    return `${toAlgebraic(fromRow, fromCol)}${toAlgebraic(toRow, toCol)}${promotion}`;
+}
+
+function parseUciMove(moveUci) {
+    if (!moveUci || moveUci.length < 4) return null;
+
+    const fromCol = FILES.indexOf(moveUci[0]);
+    const toCol = FILES.indexOf(moveUci[2]);
+    const fromRank = Number(moveUci[1]);
+    const toRank = Number(moveUci[3]);
+    if (fromCol < 0 || toCol < 0 || Number.isNaN(fromRank) || Number.isNaN(toRank)) return null;
+
+    return {
+        fromRow: 8 - fromRank,
+        fromCol,
+        toRow: 8 - toRank,
+        toCol,
+        promotion: moveUci[4] || ""
+    };
+}
+
+function isPathClear(board, fromRow, fromCol, toRow, toCol) {
+    const rowStep = toRow === fromRow ? 0 : (toRow > fromRow ? 1 : -1);
+    const colStep = toCol === fromCol ? 0 : (toCol > fromCol ? 1 : -1);
+
+    let row = fromRow + rowStep;
+    let col = fromCol + colStep;
+
+    while (row !== toRow || col !== toCol) {
+        if (board[row][col] !== "") return false;
+        row += rowStep;
+        col += colStep;
+    }
+
+    return true;
+}
+
+function findKingOnBoard(state, color) {
+    const kingCode = color === "white" ? "wk" : "bk";
+    for (let row = 0; row < 8; row += 1) {
+        for (let col = 0; col < 8; col += 1) {
+            if (state[row][col] === kingCode) {
+                return { row, col };
+            }
+        }
+    }
+    return null;
+}
+
+function canCaptureEnPassant(state, piece, row, col, targetRow, targetCol, position) {
+    const target = position.enPassantTarget;
+    if (!target) return false;
+    return (
+        target.targetRow === targetRow &&
+        target.targetCol === targetCol &&
+        Math.abs(col - targetCol) === 1 &&
+        target.pawnColor !== (piece.startsWith("w") ? "white" : "black") &&
+        state[target.captureRow]?.[target.captureCol] === target.capturedPiece
+    );
+}
+
+function canCastleOnBoard(state, color, side, position) {
+    const rights = position.castlingRights?.[color];
+    if (!rights || rights.kingMoved) return false;
+    if (isKingInCheckOnBoard(state, color, position)) return false;
+
+    const row = color === "white" ? 7 : 0;
+    const kingPiece = color === "white" ? "wk" : "bk";
+    const rookPiece = color === "white" ? "wr" : "br";
+    const rookCol = side === "king" ? 7 : 0;
+    const pathCols = side === "king" ? [5, 6] : [1, 2, 3];
+    const kingPassCols = side === "king" ? [5, 6] : [3, 2];
+
+    if (state[row][4] !== kingPiece || state[row][rookCol] !== rookPiece) return false;
+    if ((side === "king" && rights.rookH) || (side === "queen" && rights.rookA)) return false;
+    if (pathCols.some((colIndex) => state[row][colIndex] !== "")) return false;
+
+    const enemyColor = color === "white" ? "black" : "white";
+    if (kingPassCols.some((colIndex) => isSquareAttackedOnBoard(state, enemyColor, row, colIndex, position))) {
+        return false;
+    }
+
+    return true;
+}
+
+function getSpecialMoveMetaForBoard(state, piece, fromRow, fromCol, toRow, toCol, position) {
+    if (piece[1] === "k" && Math.abs(toCol - fromCol) === 2) {
+        const rookFromCol = toCol > fromCol ? 7 : 0;
+        const rookToCol = toCol > fromCol ? 5 : 3;
+        return {
+            castleSide: toCol > fromCol ? "king" : "queen",
+            rookMove: {
+                piece: piece.startsWith("w") ? "wr" : "br",
+                fromRow,
+                fromCol: rookFromCol,
+                toRow: fromRow,
+                toCol: rookToCol
+            },
+            enPassantCapture: null
+        };
+    }
+
+    if (
+        piece[1] === "p" &&
+        fromCol !== toCol &&
+        state[toRow][toCol] === "" &&
+        canCaptureEnPassant(state, piece, fromRow, fromCol, toRow, toCol, position)
+    ) {
+        return {
+            castleSide: null,
+            rookMove: null,
+            enPassantCapture: {
+                row: position.enPassantTarget.captureRow,
+                col: position.enPassantTarget.captureCol,
+                piece: position.enPassantTarget.capturedPiece
+            }
+        };
+    }
+
+    return {
+        castleSide: null,
+        rookMove: null,
+        enPassantCapture: null
+    };
+}
+
+function updateCastlingRightsForMove(move, rights) {
+    const movingColor = move.piece.startsWith("w") ? "white" : "black";
+    const opponentColor = movingColor === "white" ? "black" : "white";
+
+    if (move.piece[1] === "k") {
+        rights[movingColor].kingMoved = true;
+    }
+
+    if (move.piece[1] === "r") {
+        if (move.fromRow === (movingColor === "white" ? 7 : 0) && move.fromCol === 0) rights[movingColor].rookA = true;
+        if (move.fromRow === (movingColor === "white" ? 7 : 0) && move.fromCol === 7) rights[movingColor].rookH = true;
+    }
+
+    if (move.captured === (opponentColor === "white" ? "wr" : "br")) {
+        const captureRow = move.enPassantCapture ? move.enPassantCapture.row : move.toRow;
+        const captureCol = move.enPassantCapture ? move.enPassantCapture.col : move.toCol;
+        if (captureRow === (opponentColor === "white" ? 7 : 0) && captureCol === 0) rights[opponentColor].rookA = true;
+        if (captureRow === (opponentColor === "white" ? 7 : 0) && captureCol === 7) rights[opponentColor].rookH = true;
+    }
+}
+
+function getEnPassantTargetForMove(move) {
+    if (move.piece[1] !== "p") return null;
+    if (Math.abs(move.toRow - move.fromRow) !== 2) return null;
+
+    const direction = move.piece.startsWith("w") ? -1 : 1;
+    const pawnColor = move.piece.startsWith("w") ? "white" : "black";
+    return {
+        targetRow: move.fromRow + direction,
+        targetCol: move.fromCol,
+        captureRow: move.toRow,
+        captureCol: move.toCol,
+        pawnColor,
+        capturedPiece: move.piece
+    };
+}
+
+function applyMoveToPosition(position, move) {
+    const nextBoard = cloneBoard(position.board);
+    const nextRights = cloneCastlingRights(position.castlingRights);
+
+    nextBoard[move.toRow][move.toCol] = move.promotedTo || move.piece;
+    nextBoard[move.fromRow][move.fromCol] = "";
+
+    if (move.enPassantCapture) {
+        nextBoard[move.enPassantCapture.row][move.enPassantCapture.col] = "";
+    }
+
+    if (move.rookMove) {
+        nextBoard[move.rookMove.toRow][move.rookMove.toCol] = move.rookMove.piece;
+        nextBoard[move.rookMove.fromRow][move.rookMove.fromCol] = "";
+    }
+
+    updateCastlingRightsForMove(move, nextRights);
+
+    return {
+        board: nextBoard,
+        activeColor: position.activeColor === "w" ? "b" : "w",
+        castlingRights: nextRights,
+        enPassantTarget: getEnPassantTargetForMove(move),
+        halfmoveClock: position.halfmoveClock,
+        fullmoveNumber: position.fullmoveNumber
+    };
+}
+
+function createMoveMetaForAttempt(position, fromRow, fromCol, toRow, toCol, promotionOverride = "") {
+    const piece = position.board[fromRow]?.[fromCol];
+    if (!piece) return null;
+
+    const parsedMove = {
+        fromRow,
+        fromCol,
+        toRow,
+        toCol,
+        promotion: promotionOverride || ""
+    };
+
+    return createMoveMetaFromBoard(position.board, parsedMove, position.enPassantTarget);
+}
+
+function createMoveMetaFromBoard(board, parsedMove, enPassantTarget = null) {
+    const piece = board?.[parsedMove.fromRow]?.[parsedMove.fromCol];
+    if (!piece) return null;
+
+    const targetPiece = board?.[parsedMove.toRow]?.[parsedMove.toCol] || "";
+    const isCastle = piece[1] === "k" && Math.abs(parsedMove.toCol - parsedMove.fromCol) === 2;
+    const isEnPassant = piece[1] === "p"
+        && parsedMove.fromCol !== parsedMove.toCol
+        && !targetPiece
+        && enPassantTarget
+        && enPassantTarget.targetRow === parsedMove.toRow
+        && enPassantTarget.targetCol === parsedMove.toCol;
+    const isPromotion =
+        (piece === "wp" && parsedMove.toRow === 0) ||
+        (piece === "bp" && parsedMove.toRow === 7);
+
+    const moveMeta = {
+        piece,
+        fromRow: parsedMove.fromRow,
+        fromCol: parsedMove.fromCol,
+        toRow: parsedMove.toRow,
+        toCol: parsedMove.toCol,
+        captured: isEnPassant ? board[parsedMove.fromRow][parsedMove.toCol] : (targetPiece || null),
+        promotedTo: isPromotion ? `${piece[0]}${(parsedMove.promotion || "q").toLowerCase()}` : null,
+        castleSide: null,
+        rookMove: null,
+        enPassantCapture: null
+    };
+
+    if (isCastle) {
+        const rookFromCol = parsedMove.toCol > parsedMove.fromCol ? 7 : 0;
+        const rookToCol = parsedMove.toCol > parsedMove.fromCol ? parsedMove.toCol - 1 : parsedMove.toCol + 1;
+        moveMeta.castleSide = parsedMove.toCol > parsedMove.fromCol ? "king" : "queen";
+        moveMeta.rookMove = {
+            piece: piece.startsWith("w") ? "wr" : "br",
+            fromRow: parsedMove.fromRow,
+            fromCol: rookFromCol,
+            toRow: parsedMove.fromRow,
+            toCol: rookToCol
+        };
+    }
+
+    if (isEnPassant) {
+        moveMeta.enPassantCapture = {
+            row: parsedMove.fromRow,
+            col: parsedMove.toCol,
+            piece: board[parsedMove.fromRow][parsedMove.toCol]
+        };
+    }
+
+    return moveMeta;
+}
+
+function isSquareAttackedOnBoard(state, byColor, targetRow, targetCol, position) {
+    for (let row = 0; row < 8; row += 1) {
+        for (let col = 0; col < 8; col += 1) {
+            const piece = state[row][col];
+            if (!piece) continue;
+
+            if (
+                (byColor === "white" && piece.startsWith("w")) ||
+                (byColor === "black" && piece.startsWith("b"))
+            ) {
+                if (isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, true, position)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function isKingInCheckOnBoard(state, color, position) {
+    const kingPos = findKingOnBoard(state, color);
+    if (!kingPos) return false;
+    const enemyColor = color === "white" ? "black" : "white";
+    return isSquareAttackedOnBoard(state, enemyColor, kingPos.row, kingPos.col, position);
+}
+
+function isValidMoveOnBoard(state, piece, row, col, targetRow, targetCol, skipCheck, position) {
+    if (row === targetRow && col === targetCol) return false;
+
+    const color = piece.startsWith("w") ? "white" : "black";
+    const target = state[targetRow][targetCol];
+    if (target && target.startsWith(piece[0])) return false;
+    if (target && target[1] === "k" && !skipCheck) return false;
+
+    const type = piece[1];
+    let valid = false;
+
+    switch (type) {
+        case "p": {
+            const dir = color === "white" ? -1 : 1;
+            const startRow = color === "white" ? 6 : 1;
+
+            if (col === targetCol && target === "") {
+                if (row + dir === targetRow) valid = true;
+                if (row === startRow && row + (2 * dir) === targetRow && state[row + dir][col] === "") valid = true;
+            }
+
+            if (Math.abs(col - targetCol) === 1 && row + dir === targetRow) {
+                if (target && !target.startsWith(piece[0])) {
+                    valid = true;
+                } else if (canCaptureEnPassant(state, piece, row, col, targetRow, targetCol, position)) {
+                    valid = true;
+                }
+            }
+            break;
+        }
+        case "n": {
+            const dr = Math.abs(targetRow - row);
+            const dc = Math.abs(targetCol - col);
+            valid = (dr === 2 && dc === 1) || (dr === 1 && dc === 2);
+            break;
+        }
+        case "b":
+            valid = Math.abs(targetRow - row) === Math.abs(targetCol - col) && isPathClear(state, row, col, targetRow, targetCol);
+            break;
+        case "r":
+            valid = (row === targetRow || col === targetCol) && isPathClear(state, row, col, targetRow, targetCol);
+            break;
+        case "q": {
+            const dr = Math.abs(targetRow - row);
+            const dc = Math.abs(targetCol - col);
+            valid = (dr === dc || row === targetRow || col === targetCol) && isPathClear(state, row, col, targetRow, targetCol);
+            break;
+        }
+        case "k": {
+            const dr = Math.abs(targetRow - row);
+            const dc = Math.abs(targetCol - col);
+            valid = dr <= 1 && dc <= 1;
+            if (!valid && dr === 0 && dc === 2 && !skipCheck) {
+                valid = canCastleOnBoard(state, color, targetCol > col ? "king" : "queen", position);
+            }
+            break;
+        }
+        default:
+            return false;
+    }
+
+    if (valid && !skipCheck) {
+        const moveMeta = createMoveMetaForAttempt(position, row, col, targetRow, targetCol);
+        if (!moveMeta) return false;
+        const nextPosition = applyMoveToPosition(position, moveMeta);
+        if (isKingInCheckOnBoard(nextPosition.board, color, nextPosition)) {
+            return false;
+        }
+    }
+
+    return valid;
+}
+
+function canPieceReachTargetForNotation(board, piece, fromRow, fromCol, toRow, toCol) {
+    if (!board || !piece) return false;
+    if (fromRow === toRow && fromCol === toCol) return false;
+
+    const target = board[toRow]?.[toCol] || "";
+    if (target && target.startsWith(piece[0])) return false;
+
+    const rowDiff = toRow - fromRow;
+    const colDiff = toCol - fromCol;
+    const absRow = Math.abs(rowDiff);
+    const absCol = Math.abs(colDiff);
+
+    if (piece[1] === "n") return (absRow === 2 && absCol === 1) || (absRow === 1 && absCol === 2);
+    if (piece[1] === "b") return absRow === absCol && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    if (piece[1] === "r") return (fromRow === toRow || fromCol === toCol) && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    if (piece[1] === "q") return ((absRow === absCol) || (fromRow === toRow || fromCol === toCol)) && isPathClear(board, fromRow, fromCol, toRow, toCol);
+    if (piece[1] === "k") return absRow <= 1 && absCol <= 1;
+    return false;
+}
+
+function getNotationDisambiguation(board, moveMeta) {
+    const { piece, fromRow, fromCol, toRow, toCol } = moveMeta;
+    const contenders = [];
+
+    for (let row = 0; row < 8; row += 1) {
+        for (let col = 0; col < 8; col += 1) {
+            if (row === fromRow && col === fromCol) continue;
+            if (board[row][col] !== piece) continue;
+            if (canPieceReachTargetForNotation(board, piece, row, col, toRow, toCol)) {
+                contenders.push({ row, col });
+            }
+        }
+    }
+
+    return contenders.length > 0 ? toAlgebraic(fromRow, fromCol) : "";
+}
+
+function buildSanLikeNotation(moveMeta, board) {
+    if (moveMeta.castleSide) {
+        return moveMeta.castleSide === "king" ? "O-O" : "O-O-O";
+    }
+
+    const { piece, fromRow, fromCol, toRow, toCol, captured, promotedTo } = moveMeta;
+    const isPawn = piece[1] === "p";
+    const pieceLetter = isPawn ? "" : piece[1].toUpperCase();
+    const captureMark = captured ? "x" : "";
+    const targetSquare = toAlgebraic(toRow, toCol);
+    const promotionMark = promotedTo ? `=${promotedTo[1].toUpperCase()}` : "";
+
+    if (isPawn) {
+        const pawnPrefix = captured ? toAlgebraic(fromRow, fromCol)[0] : "";
+        return `${pawnPrefix}${captureMark}${targetSquare}${promotionMark}`;
+    }
+
+    return `${pieceLetter}${getNotationDisambiguation(board, moveMeta)}${captureMark}${targetSquare}${promotionMark}`;
+}
+
+function formatPuzzlePv(solutionMoves, fen, moveLimit = 6) {
+    const position = parseFenPosition(fen);
+    if (!position) return "";
+
+    let currentPosition = {
+        board: cloneBoard(position.board),
+        activeColor: position.activeColor,
+        castlingRights: cloneCastlingRights(position.castlingRights),
+        enPassantTarget: cloneEnPassantTarget(position.enPassantTarget),
+        halfmoveClock: position.halfmoveClock,
+        fullmoveNumber: position.fullmoveNumber
+    };
+
+    return (solutionMoves || []).slice(0, moveLimit).map((moveUci) => {
+        const parsed = parseUciMove(moveUci);
+        if (!parsed) return "";
+
+        const moveMeta = createMoveMetaFromBoard(currentPosition.board, parsed, currentPosition.enPassantTarget);
+        if (!moveMeta) return "";
+
+        const notation = buildSanLikeNotation(moveMeta, currentPosition.board);
+        currentPosition = applyMoveToPosition(currentPosition, moveMeta);
+        return notation;
+    }).filter(Boolean).join("  ");
 }
 
 function handleSquareClick(row, col) {
-    if (!currentPuzzle || currentPuzzle.locked || !puzzleBoardState) return;
+    if (!currentPuzzle || currentPuzzle.locked || !puzzlePosition || puzzleSolved) return;
 
-    const piece = puzzleBoardState[row][col];
-    const sideToMove = getSideToMove(currentPuzzle.fen);
+    const piece = puzzlePosition.board[row][col];
+    const sideToMove = puzzlePosition.activeColor === "b" ? "black" : "white";
 
     if (!selectedSquare) {
         if (!piece) return;
@@ -246,18 +837,37 @@ function handleSquareClick(row, col) {
         return;
     }
 
-    if (piece && piece[0] === puzzleBoardState[selectedSquare.row][selectedSquare.col]?.[0]) {
+    if (piece && piece[0] === puzzlePosition.board[selectedSquare.row][selectedSquare.col]?.[0]) {
         selectedSquare = { row, col };
         renderPuzzleBoard();
         return;
     }
 
-    submitAttempt(buildMoveUci(selectedSquare.row, selectedSquare.col, row, col));
+    const fromPiece = puzzlePosition.board[selectedSquare.row][selectedSquare.col];
+    const isLegal = isValidMoveOnBoard(
+        puzzlePosition.board,
+        fromPiece,
+        selectedSquare.row,
+        selectedSquare.col,
+        row,
+        col,
+        false,
+        puzzlePosition
+    );
+
+    if (!isLegal) {
+        setPuzzleMessage("That move is not legal in this position.", "warning");
+        return;
+    }
+
+    const moveMeta = createMoveMetaForAttempt(puzzlePosition, selectedSquare.row, selectedSquare.col, row, col);
+    const promotion = moveMeta?.promotedTo ? moveMeta.promotedTo[1] : "";
+    submitAttempt(buildMoveUci(selectedSquare.row, selectedSquare.col, row, col, promotion), moveMeta);
     selectedSquare = null;
     renderPuzzleBoard();
 }
 
-async function submitAttempt(moveUci) {
+async function submitAttempt(moveUci, moveMeta) {
     const response = await apiFetch(`/api/premium/puzzles/${currentPuzzle.id}/attempt`, {
         method: "POST",
         body: JSON.stringify({ move: moveUci })
@@ -280,6 +890,12 @@ async function submitAttempt(moveUci) {
     }
 
     if (data.correct) {
+        if (moveMeta) {
+            puzzlePosition = applyMoveToPosition(puzzlePosition, moveMeta);
+            puzzleBoardState = puzzlePosition.board;
+            puzzleSolved = true;
+            renderPuzzleBoard();
+        }
         setPuzzleMessage(data.message || "Correct move.", "success");
         revealSolution(data.solutionMoves || []);
         return;
@@ -289,10 +905,24 @@ async function submitAttempt(moveUci) {
 }
 
 function revealSolution(solutionMoves) {
-    if (!puzzleSolution) return;
-    const line = (solutionMoves || [])
-        .map((move) => `${move.slice(0, 2)}-${move.slice(2, 4)}${move[4] ? `=${move[4].toUpperCase()}` : ""}`)
-        .join("  ");
+    if (!puzzleSolution || !currentPuzzle?.fen) return;
+
+    if (!puzzleSolved && puzzlePosition && Array.isArray(solutionMoves) && solutionMoves.length > 0) {
+        const firstMove = parseUciMove(solutionMoves[0]);
+        const moveMeta = firstMove
+            ? createMoveMetaFromBoard(puzzlePosition.board, firstMove, puzzlePosition.enPassantTarget)
+            : null;
+
+        if (moveMeta) {
+            puzzlePosition = applyMoveToPosition(puzzlePosition, moveMeta);
+            puzzleBoardState = puzzlePosition.board;
+            puzzleSolved = true;
+            selectedSquare = null;
+            renderPuzzleBoard();
+        }
+    }
+
+    const line = formatPuzzlePv(solutionMoves || [], currentPuzzle.fen);
     puzzleSolution.textContent = line ? `Solution line: ${line}` : "No stored line.";
     puzzleSolution.classList.remove("hidden");
 }
@@ -312,10 +942,13 @@ async function openPuzzle(id) {
 
     if (response.status === 403) {
         currentPuzzle = data.puzzle || { locked: true, title: "Premium Puzzle" };
+        puzzlePosition = null;
         if (puzzleTitle) puzzleTitle.textContent = currentPuzzle.title || "Premium Puzzle";
         if (puzzleDescription) {
             puzzleDescription.textContent = currentPuzzle.description || "Unlock premium to solve this puzzle.";
         }
+        if (puzzleMeta) puzzleMeta.innerHTML = "";
+        if (puzzleSourceRow) puzzleSourceRow.classList.add("hidden");
         if (puzzleBoardWrap) puzzleBoardWrap.classList.add("hidden");
         if (lockedPuzzleCta) lockedPuzzleCta.classList.remove("hidden");
         if (showSolutionBtn) showSolutionBtn.classList.add("hidden");
@@ -330,14 +963,25 @@ async function openPuzzle(id) {
     }
 
     currentPuzzle = data.puzzle;
-    puzzleBoardState = parseFenBoard(currentPuzzle.fen);
+    puzzlePosition = parseFenPosition(currentPuzzle.fen);
+    puzzleBoardState = puzzlePosition?.board || null;
     selectedSquare = null;
+    puzzleSolved = false;
 
     if (puzzleTitle) puzzleTitle.textContent = currentPuzzle.title;
     if (puzzleDescription) {
         puzzleDescription.textContent = currentPuzzle.description || "Find the best move.";
     }
+    renderPuzzleMeta(currentPuzzle, puzzlePosition);
     if (puzzleBoardWrap) puzzleBoardWrap.classList.remove("hidden");
+    if (puzzleSourceRow && puzzleSourceLink) {
+        if (currentPuzzle.gameUrl) {
+            puzzleSourceLink.href = currentPuzzle.gameUrl;
+            puzzleSourceRow.classList.remove("hidden");
+        } else {
+            puzzleSourceRow.classList.add("hidden");
+        }
+    }
     if (lockedPuzzleCta) lockedPuzzleCta.classList.add("hidden");
     if (showSolutionBtn) {
         showSolutionBtn.classList.remove("hidden");

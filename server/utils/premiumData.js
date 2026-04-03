@@ -13,9 +13,9 @@ const DEFAULT_PUZZLES = [
     {
         slug: "queen-net-1",
         title: "Queen Net",
-        description: "White to move and finish the game immediately.",
-        fen: "6k1/5Q2/6K1/8/8/8/8/8 w - - 0 1",
-        solution_moves: ["f7g7"],
+        description: "White to move and force a clean queen mate in one.",
+        fen: "8/1Q6/2K5/k7/8/8/8/8 w - - 0 1",
+        solution_moves: ["b7b5"],
         difficulty: "Beginner",
         theme: "Mate in 1",
         is_premium: false
@@ -23,29 +23,29 @@ const DEFAULT_PUZZLES = [
     {
         slug: "rook-lift-1",
         title: "Rook Lift",
-        description: "White to move and deliver a clean rook checkmate.",
-        fen: "6k1/8/6K1/8/8/8/8/6R1 w - - 0 1",
-        solution_moves: ["g1g8"],
+        description: "White to move and deliver a textbook rook mate.",
+        fen: "7k/8/6K1/8/8/8/8/R7 w - - 0 1",
+        solution_moves: ["a1a8"],
         difficulty: "Beginner",
-        theme: "Back Rank",
+        theme: "Mate in 1",
         is_premium: false
     },
     {
-        slug: "corner-squeeze",
-        title: "Corner Squeeze",
-        description: "Find the precise queen move that ends the game.",
-        fen: "7k/6Q1/6K1/8/8/8/8/8 w - - 0 1",
-        solution_moves: ["g7f8"],
+        slug: "queen-cage",
+        title: "Queen Cage",
+        description: "Use the queen to seal every escape square in one move.",
+        fen: "8/1Q6/2K5/8/k7/8/8/8 w - - 0 1",
+        solution_moves: ["b7b4"],
         difficulty: "Intermediate",
         theme: "Mate in 1",
         is_premium: true
     },
     {
-        slug: "bishop-diagonal",
-        title: "Bishop Diagonal",
-        description: "Spot the bishop move that mates the king from long range.",
-        fen: "7k/6Q1/6K1/8/2B5/8/8/8 w - - 0 1",
-        solution_moves: ["c4g8"],
+        slug: "queen-lift",
+        title: "Queen Lift",
+        description: "White to move and climb to the final mating square.",
+        fen: "7k/8/5KQ1/8/8/8/8/8 w - - 0 1",
+        solution_moves: ["g6g7"],
         difficulty: "Intermediate",
         theme: "Mate in 1",
         is_premium: true
@@ -53,31 +53,31 @@ const DEFAULT_PUZZLES = [
     {
         slug: "queen-slide",
         title: "Queen Slide",
-        description: "Use the queen to seal every escape square in one move.",
-        fen: "7k/8/6QK/8/8/8/8/8 w - - 0 1",
-        solution_moves: ["g6g7"],
+        description: "Slide the queen into place and leave the king boxed in.",
+        fen: "7k/8/5K2/6Q1/8/8/8/8 w - - 0 1",
+        solution_moves: ["g5g7"],
         difficulty: "Intermediate",
-        theme: "King Hunt",
+        theme: "Mate in 1",
         is_premium: true
     },
     {
         slug: "rook-finish",
         title: "Rook Finish",
-        description: "Use the rook to force checkmate in one move.",
-        fen: "6k1/8/6K1/8/8/8/8/6R1 w - - 0 1",
+        description: "White to move and finish the attack with a vertical rook mate.",
+        fen: "7k/8/5K2/8/8/8/8/6R1 w - - 0 1",
         solution_moves: ["g1g8"],
         difficulty: "Intermediate",
-        theme: "Back Rank",
+        theme: "Mate in 1",
         is_premium: true
     },
     {
         slug: "ladder-mate",
-        title: "Ladder Mate",
-        description: "The heavy piece coordination is ready. Find the finishing rook move.",
-        fen: "6k1/5ppp/6K1/8/8/8/5R2/6R1 w - - 0 1",
-        solution_moves: ["g1g8"],
+        title: "Rook Net",
+        description: "Use the rook to trap the king with no escape squares left.",
+        fen: "6k1/8/5K2/8/8/8/8/7R w - - 0 1",
+        solution_moves: ["h1h8"],
         difficulty: "Advanced",
-        theme: "Technique",
+        theme: "Mate in 1",
         is_premium: true
     }
 ];
@@ -185,12 +185,34 @@ async function ensurePremiumSchema(pool) {
             title VARCHAR(120) NOT NULL,
             description TEXT,
             fen TEXT NOT NULL,
+            source_name VARCHAR(40) DEFAULT 'seed',
+            source_fen TEXT,
+            first_move_uci VARCHAR(12),
             solution_moves JSONB NOT NULL DEFAULT '[]'::jsonb,
             difficulty VARCHAR(40),
             theme VARCHAR(60),
+            rating INTEGER,
+            popularity INTEGER,
+            nb_plays INTEGER,
+            game_url TEXT,
+            opening_tags TEXT,
+            imported_at TIMESTAMP,
             is_premium BOOLEAN DEFAULT TRUE,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
+    `);
+
+    await pool.query(`
+        ALTER TABLE puzzles
+        ADD COLUMN IF NOT EXISTS source_name VARCHAR(40) DEFAULT 'seed',
+        ADD COLUMN IF NOT EXISTS source_fen TEXT,
+        ADD COLUMN IF NOT EXISTS first_move_uci VARCHAR(12),
+        ADD COLUMN IF NOT EXISTS rating INTEGER,
+        ADD COLUMN IF NOT EXISTS popularity INTEGER,
+        ADD COLUMN IF NOT EXISTS nb_plays INTEGER,
+        ADD COLUMN IF NOT EXISTS game_url TEXT,
+        ADD COLUMN IF NOT EXISTS opening_tags TEXT,
+        ADD COLUMN IF NOT EXISTS imported_at TIMESTAMP
     `);
 
     await pool.query(`
@@ -228,15 +250,44 @@ async function ensurePremiumSchema(pool) {
 
     for (const puzzle of DEFAULT_PUZZLES) {
         await pool.query(
-            `INSERT INTO puzzles (slug, title, description, fen, solution_moves, difficulty, theme, is_premium)
-             VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, $8)
+            `INSERT INTO puzzles (
+                slug,
+                title,
+                description,
+                fen,
+                source_name,
+                source_fen,
+                first_move_uci,
+                solution_moves,
+                difficulty,
+                theme,
+                rating,
+                popularity,
+                nb_plays,
+                game_url,
+                opening_tags,
+                imported_at,
+                is_premium
+             )
+             VALUES (
+                $1, $2, $3, $4, 'seed', $4, NULL, $5::jsonb, $6, $7, NULL, NULL, NULL, NULL, NULL, NULL, $8
+             )
              ON CONFLICT (slug) DO UPDATE
              SET title = EXCLUDED.title,
                  description = EXCLUDED.description,
                  fen = EXCLUDED.fen,
+                 source_name = EXCLUDED.source_name,
+                 source_fen = EXCLUDED.source_fen,
+                 first_move_uci = EXCLUDED.first_move_uci,
                  solution_moves = EXCLUDED.solution_moves,
                  difficulty = EXCLUDED.difficulty,
                  theme = EXCLUDED.theme,
+                 rating = EXCLUDED.rating,
+                 popularity = EXCLUDED.popularity,
+                 nb_plays = EXCLUDED.nb_plays,
+                 game_url = EXCLUDED.game_url,
+                 opening_tags = EXCLUDED.opening_tags,
+                 imported_at = EXCLUDED.imported_at,
                  is_premium = EXCLUDED.is_premium`,
             [
                 puzzle.slug,

@@ -48,11 +48,21 @@
                     <button id="showSolutionBtn" class="premium-secondary-btn hidden" type="button">Show Solution</button>
                 </div>
                 <p id="puzzleDescription" class="premium-muted">Open a puzzle from the left to start solving.</p>
+                <div id="puzzleMeta" class="puzzle-meta-row"></div>
                 <div id="puzzleBoardWrap" class="premium-board-wrap hidden">
-                    <div id="puzzleBoard" class="history-board premium-puzzle-board"></div>
+                    <div class="puzzle-board-shell">
+                        <div id="puzzleRanks" class="puzzle-rank-axis" aria-hidden="true"></div>
+                        <div class="puzzle-board-area">
+                            <div id="puzzleBoard" class="history-board premium-puzzle-board"></div>
+                            <div id="puzzleFiles" class="puzzle-file-axis" aria-hidden="true"></div>
+                        </div>
+                    </div>
                 </div>
                 <div id="puzzleStatus" class="premium-status-banner hidden"></div>
                 <div id="puzzleSolution" class="premium-solution hidden"></div>
+                <div id="puzzleSourceRow" class="puzzle-source-row hidden">
+                    <a id="puzzleSourceLink" class="premium-secondary-link" href="#" target="_blank" rel="noreferrer">View Original Game</a>
+                </div>
                 <div id="lockedPuzzleCta" class="premium-lock-callout hidden">
                     <p>This puzzle is part of Premium.</p>
                     <a class="premium-primary-link" href="subscription.html">Unlock Premium</a>

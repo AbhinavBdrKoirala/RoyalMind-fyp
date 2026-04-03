@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node index.js",
     "dev": "node index.js",
-    "test": "node test/validation.test.js"
+    "test": "node test/validation.test.js",
+    "import:puzzles": "node scripts/import-lichess-puzzles.js"
   },
   "keywords": [],
   "author": "",

@@ -32,9 +32,12 @@ function mapPuzzleRow(row, isPremiumUser, includeSolution = false) {
         description: row.description,
         difficulty: row.difficulty,
         theme: row.theme,
+        rating: row.rating,
+        sourceName: row.source_name,
         isPremium: row.is_premium,
         locked,
         fen: locked ? null : row.fen,
+        gameUrl: locked ? null : row.game_url,
         solutionMoves: includeSolution && !locked ? solutionMoves : []
     };
 }
@@ -63,7 +66,21 @@ router.get("/puzzles", authenticateToken, async (req, res) => {
         const isPremiumUser = Boolean(subscription);
 
         const result = await pool.query(
-            `SELECT * FROM puzzles ORDER BY is_premium ASC, id ASC`
+            `WITH imported AS (
+                SELECT EXISTS(
+                    SELECT 1
+                    FROM puzzles
+                    WHERE source_name = 'lichess'
+                ) AS has_lichess
+             )
+             SELECT p.*
+             FROM puzzles p
+             CROSS JOIN imported i
+             WHERE NOT i.has_lichess OR p.source_name = 'lichess'
+             ORDER BY
+                 p.is_premium ASC,
+                 p.rating ASC NULLS LAST,
+                 p.id ASC`
         );
 
         res.json({
