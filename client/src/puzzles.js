@@ -38,6 +38,7 @@ const pieceMap = {
 };
 
 let currentPuzzle = null;
+let puzzleCatalog = [];
 let puzzleBoardState = null;
 let puzzlePosition = null;
 let selectedSquare = null;
@@ -233,7 +234,7 @@ function shouldShowLegalHints() {
 function renderPuzzleList(puzzles) {
     if (!puzzleList) return;
     puzzleList.innerHTML = puzzles.map((puzzle) => `
-        <button class="premium-list-item${puzzle.locked ? " locked" : ""}" type="button" data-puzzle-id="${puzzle.id}">
+        <button class="premium-list-item premium-puzzle-list-item${puzzle.locked ? " locked" : ""}${currentPuzzle && String(currentPuzzle.id) === String(puzzle.id) ? " active" : ""}" type="button" data-puzzle-id="${puzzle.id}">
             <strong>${escapeHtml(puzzle.title)}</strong>
             <span>${escapeHtml(puzzle.theme || "Puzzle")} - ${escapeHtml(puzzle.difficulty || "Mixed")}</span>
             <small>${puzzle.locked ? "Premium" : "Open"}</small>
@@ -942,6 +943,7 @@ async function openPuzzle(id) {
 
     if (response.status === 403) {
         currentPuzzle = data.puzzle || { locked: true, title: "Premium Puzzle" };
+        renderPuzzleList(puzzleCatalog);
         puzzlePosition = null;
         if (puzzleTitle) puzzleTitle.textContent = currentPuzzle.title || "Premium Puzzle";
         if (puzzleDescription) {
@@ -963,6 +965,7 @@ async function openPuzzle(id) {
     }
 
     currentPuzzle = data.puzzle;
+    renderPuzzleList(puzzleCatalog);
     puzzlePosition = parseFenPosition(currentPuzzle.fen);
     puzzleBoardState = puzzlePosition?.board || null;
     selectedSquare = null;
@@ -1021,6 +1024,7 @@ async function initPuzzles() {
 
     const data = await response.json();
     premiumUnlocked = !!data.isPremium;
+    puzzleCatalog = Array.isArray(data.puzzles) ? data.puzzles : [];
 
     if (puzzleMembershipNote) {
         puzzleMembershipNote.textContent = premiumUnlocked
@@ -1028,15 +1032,15 @@ async function initPuzzles() {
             : "You can solve the free puzzle now and unlock premium challenges from the subscription page.";
     }
 
-    renderPuzzleList(data.puzzles || []);
+    renderPuzzleList(puzzleCatalog);
     puzzleList?.addEventListener("click", (event) => {
         const button = event.target.closest("[data-puzzle-id]");
         if (!button) return;
         openPuzzle(button.dataset.puzzleId);
     });
 
-    if (Array.isArray(data.puzzles) && data.puzzles.length > 0) {
-        openPuzzle(data.puzzles[0].id);
+    if (puzzleCatalog.length > 0) {
+        openPuzzle(puzzleCatalog[0].id);
     }
 }
 

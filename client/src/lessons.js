@@ -6,6 +6,7 @@ const appUi = window.RoyalMindUI || {
 
 const lessonGrid = document.getElementById("lessonGrid");
 const lessonMembershipNote = document.getElementById("lessonMembershipNote");
+const lessonSummary = document.getElementById("lessonSummary");
 
 if (!token) {
     appUi.notify("Please log in to access lessons.", {
@@ -28,6 +29,26 @@ function redirectToLogin(message) {
     setTimeout(() => {
         window.location.href = "index.html";
     }, 700);
+}
+
+function getLessonTone(category) {
+    const value = String(category || "").toLowerCase();
+    if (value.includes("opening")) return "openings";
+    if (value.includes("tactic")) return "tactics";
+    if (value.includes("endgame")) return "endgames";
+    if (value.includes("strategy")) return "strategy";
+    if (value.includes("attack")) return "attack";
+    if (value.includes("defense")) return "defense";
+    return "general";
+}
+
+function getLessonMonogram(category) {
+    return String(category || "Lesson")
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() || "")
+        .join("") || "LS";
 }
 
 async function apiFetch(path, options = {}) {
@@ -64,7 +85,10 @@ function renderLessons(lessons, isPremium) {
     }
 
     lessonGrid.innerHTML = lessons.map((lesson) => `
-        <article class="premium-card lesson-card${lesson.locked ? " locked" : ""}">
+        <article class="premium-card lesson-card lesson-tone-${escapeAttribute(getLessonTone(lesson.category))}${lesson.locked ? " locked" : ""}">
+            <div class="lesson-card-media" aria-hidden="true">
+                <span class="lesson-card-monogram">${escapeHtml(getLessonMonogram(lesson.category))}</span>
+            </div>
             <div class="premium-card-head">
                 <div>
                     <p class="premium-section-label">${escapeHtml(lesson.category || "Lesson")}</p>
@@ -73,14 +97,41 @@ function renderLessons(lessons, isPremium) {
                 <span class="premium-badge${lesson.locked ? " premium" : ""}">${lesson.locked ? "Premium" : "Open"}</span>
             </div>
             <p class="premium-muted">${escapeHtml(lesson.description || "")}</p>
-            <div class="premium-actions-row">
+            <div class="lesson-card-meta">
+                <span>${lesson.locked ? "Subscriber collection" : "Free collection"}</span>
+                <span>${escapeHtml(lesson.category || "General study")}</span>
+            </div>
+            <div class="premium-actions-row lesson-card-actions">
                 ${lesson.locked
-                    ? '<a class="premium-primary-link" href="subscription.html">Unlock Premium</a>'
-                    : `<a class="premium-primary-link" href="${escapeAttribute(lesson.youtubeUrl || lesson.previewUrl || "#")}" target="_blank" rel="noreferrer">Open on YouTube</a>`
+                    ? '<a class="premium-primary-link" href="subscription.html">Unlock Premium</a><a class="premium-secondary-link" href="subscription.html">View Plan</a>'
+                    : `<a class="premium-primary-link" href="${escapeAttribute(lesson.youtubeUrl || lesson.previewUrl || "#")}" target="_blank" rel="noreferrer">Open on YouTube</a><a class="premium-secondary-link" href="subscription.html">See Premium</a>`
                 }
             </div>
         </article>
     `).join("");
+}
+
+function renderLessonSummary(lessons) {
+    if (!lessonSummary) return;
+
+    const items = Array.isArray(lessons) ? lessons : [];
+    const premiumCount = items.filter((lesson) => lesson.isPremium).length;
+    const categories = new Set(items.map((lesson) => lesson.category).filter(Boolean));
+
+    lessonSummary.innerHTML = `
+        <article class="premium-stat-card">
+            <strong>${items.length}</strong>
+            <span>Collections ready to explore</span>
+        </article>
+        <article class="premium-stat-card">
+            <strong>${premiumCount}</strong>
+            <span>Premium lesson paths</span>
+        </article>
+        <article class="premium-stat-card">
+            <strong>${categories.size}</strong>
+            <span>Study categories</span>
+        </article>
+    `;
 }
 
 async function initLessons() {
@@ -105,6 +156,7 @@ async function initLessons() {
     }
 
     const data = await response.json();
+    renderLessonSummary(data.lessons || []);
     renderLessons(data.lessons || [], !!data.isPremium);
 }
 

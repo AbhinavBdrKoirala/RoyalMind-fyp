@@ -5,6 +5,8 @@ const botDialog = document.getElementById("botDialog");
 const playBotButton = document.getElementById("playBotButton");
 const closeBotDialog = document.getElementById("closeBotDialog");
 const botLevelButtons = Array.from(document.querySelectorAll("[data-level]"));
+const dashboardGreeting = document.getElementById("dashboardGreeting");
+const dashboardSubtext = document.getElementById("dashboardSubtext");
 const appUi = window.RoyalMindUI || {
     notify: () => {}
 };
@@ -42,6 +44,23 @@ function storeUser(user) {
             displayName: user.displayName || user.username || user.email || "RoyalMind Player",
             ...user.settings
         }));
+    }
+}
+
+function hydrateDashboardIntro(user) {
+    if (!dashboardGreeting && !dashboardSubtext) return;
+
+    const displayName = user?.displayName || user?.username || user?.email?.split("@")[0] || "Player";
+    const firstName = String(displayName).trim().split(/\s+/)[0] || "Player";
+    const settings = user?.settings || {};
+    const defaultTime = settings.defaultTime || "Rapid 10+0";
+
+    if (dashboardGreeting) {
+        dashboardGreeting.textContent = `Welcome back, ${firstName}`;
+    }
+
+    if (dashboardSubtext) {
+        dashboardSubtext.textContent = `Your board is ready. Start a ${defaultTime} game, open premium training, or review your recent progress.`;
     }
 }
 
@@ -92,6 +111,7 @@ async function hydrateUserSession() {
     const storedUser = parseStoredUser();
     if (storedUser) {
         storeUser(storedUser);
+        hydrateDashboardIntro(storedUser);
     }
 
     const response = await apiFetch("/api/auth/me", { method: "GET" });
@@ -107,6 +127,7 @@ async function hydrateUserSession() {
     const data = await response.json();
     if (data?.user) {
         storeUser(data.user);
+        hydrateDashboardIntro(data.user);
     }
 }
 

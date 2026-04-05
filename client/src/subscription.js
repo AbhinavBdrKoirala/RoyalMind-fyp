@@ -13,6 +13,7 @@ const secondaryButton = document.getElementById("subscriptionSecondaryBtn");
 const contentStats = document.getElementById("subscriptionContentStats");
 const puzzlePreview = document.getElementById("subscriptionPuzzlePreview");
 const lessonPreview = document.getElementById("subscriptionLessonPreview");
+const statusCard = document.getElementById("subscriptionStatusCard");
 
 if (!token) {
     appUi.notify("Please log in to manage subscription access.", {
@@ -123,6 +124,9 @@ function renderPreviewList(target, items, kind) {
 
 function renderStatus(subscription) {
     const isPremium = !!subscription?.isPremium;
+    document.body.classList.toggle("premium-active", isPremium);
+    statusCard?.classList.toggle("is-active", isPremium);
+
     if (statusTitle) {
         statusTitle.textContent = isPremium
             ? `${subscription.planName || "Premium"} is active`
