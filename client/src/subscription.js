@@ -38,6 +38,37 @@ function redirectToLogin(message) {
     }, 700);
 }
 
+function getLocalePreferences() {
+    try {
+        const settings = JSON.parse(localStorage.getItem("royalmindSettings")) || {};
+        const localeMap = {
+            English: "en-US",
+            Spanish: "es-ES",
+            French: "fr-FR"
+        };
+
+        return {
+            locale: localeMap[settings.language] || "en-US",
+            timeZone: settings.timeZone && settings.timeZone !== "Local device time" ? settings.timeZone : undefined
+        };
+    } catch {
+        return { locale: "en-US", timeZone: undefined };
+    }
+}
+
+function formatDateLabel(value) {
+    if (!value) return "";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const { locale, timeZone } = getLocalePreferences();
+    return date.toLocaleDateString(locale, {
+        dateStyle: "medium",
+        ...(timeZone ? { timeZone } : {})
+    });
+}
+
 async function apiFetch(path, options = {}) {
     for (const base of API_BASES) {
         try {
@@ -134,7 +165,7 @@ function renderStatus(subscription) {
     }
     if (statusText) {
         statusText.textContent = isPremium
-            ? `Premium access is active${subscription.expiresAt ? ` until ${new Date(subscription.expiresAt).toLocaleDateString()}` : ""}.`
+            ? `Premium access is active${subscription.expiresAt ? ` until ${formatDateLabel(subscription.expiresAt)}` : ""}.`
             : "Upgrade to unlock premium-only puzzles and YouTube lesson collections.";
     }
 

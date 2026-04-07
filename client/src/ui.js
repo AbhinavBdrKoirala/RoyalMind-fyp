@@ -14,6 +14,21 @@
         lastFocus: null
     };
 
+    function applyDocumentLanguage() {
+        try {
+            const settings = JSON.parse(localStorage.getItem("royalmindSettings")) || {};
+            const languageMap = {
+                English: "en",
+                Spanish: "es",
+                French: "fr"
+            };
+            const languageCode = languageMap[settings.language] || "en";
+            document.documentElement.lang = languageCode;
+        } catch {
+            document.documentElement.lang = "en";
+        }
+    }
+
     function ensureUi() {
         if (state.root || !document.body) return;
 
@@ -188,6 +203,7 @@
             .replace(/'/g, "&#39;");
     }
 
+    applyDocumentLanguage();
     ensureUi();
 
     window.RoyalMindUI = {

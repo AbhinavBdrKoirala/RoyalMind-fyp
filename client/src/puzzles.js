@@ -44,6 +44,7 @@ let puzzlePosition = null;
 let selectedSquare = null;
 let premiumUnlocked = false;
 let puzzleSolved = false;
+let audioContext = null;
 
 if (!token) {
     appUi.notify("Please log in to access puzzles.", {
@@ -73,6 +74,84 @@ function getStoredSettings() {
         return JSON.parse(localStorage.getItem("royalmindSettings")) || {};
     } catch {
         return {};
+    }
+}
+
+function getLocalePreferences() {
+    const settings = getStoredSettings();
+    const localeMap = {
+        English: "en-US",
+        Spanish: "es-ES",
+        French: "fr-FR"
+    };
+
+    return {
+        locale: localeMap[settings.language] || "en-US",
+        timeZone: settings.timeZone && settings.timeZone !== "Local device time" ? settings.timeZone : undefined
+    };
+}
+
+function formatDateTimeLabel(value) {
+    if (!value) return "";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const { locale, timeZone } = getLocalePreferences();
+    return date.toLocaleString(locale, {
+        dateStyle: "medium",
+        timeStyle: "short",
+        ...(timeZone ? { timeZone } : {})
+    });
+}
+
+function shouldPlaySounds() {
+    return getStoredSettings().notifySounds !== false;
+}
+
+function getAudioContext() {
+    if (audioContext) return audioContext;
+
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+
+    audioContext = new AudioCtor();
+    return audioContext;
+}
+
+function playUiSound(kind = "move") {
+    if (!shouldPlaySounds()) return;
+
+    const context = getAudioContext();
+    if (!context) return;
+
+    const tones = {
+        success: { frequency: 560, duration: 0.11, type: "triangle", gain: 0.03 },
+        warning: { frequency: 190, duration: 0.09, type: "sawtooth", gain: 0.02 }
+    };
+
+    const tone = tones[kind] || tones.success;
+
+    try {
+        if (context.state === "suspended") {
+            context.resume().catch(() => {});
+        }
+
+        const oscillator = context.createOscillator();
+        const gainNode = context.createGain();
+        const now = context.currentTime;
+
+        oscillator.type = tone.type;
+        oscillator.frequency.setValueAtTime(tone.frequency, now);
+        gainNode.gain.setValueAtTime(0.0001, now);
+        gainNode.gain.linearRampToValueAtTime(tone.gain, now + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + tone.duration);
+        oscillator.connect(gainNode);
+        gainNode.connect(context.destination);
+        oscillator.start(now);
+        oscillator.stop(now + tone.duration + 0.02);
+    } catch {
+        // ignore audio errors
     }
 }
 
@@ -234,10 +313,10 @@ function shouldShowLegalHints() {
 function renderPuzzleList(puzzles) {
     if (!puzzleList) return;
     puzzleList.innerHTML = puzzles.map((puzzle) => `
-        <button class="premium-list-item premium-puzzle-list-item${puzzle.locked ? " locked" : ""}${currentPuzzle && String(currentPuzzle.id) === String(puzzle.id) ? " active" : ""}" type="button" data-puzzle-id="${puzzle.id}">
+        <button class="premium-list-item premium-puzzle-list-item${puzzle.locked ? " locked" : ""}${puzzle.solved ? " solved" : ""}${currentPuzzle && String(currentPuzzle.id) === String(puzzle.id) ? " active" : ""}" type="button" data-puzzle-id="${puzzle.id}">
             <strong>${escapeHtml(puzzle.title)}</strong>
             <span>${escapeHtml(puzzle.theme || "Puzzle")} - ${escapeHtml(puzzle.difficulty || "Mixed")}</span>
-            <small>${puzzle.locked ? "Premium" : "Open"}</small>
+            <small>${puzzle.locked ? "Premium" : puzzle.solved ? "Solved" : puzzle.attemptCount > 0 ? `${puzzle.attemptCount} attempt${puzzle.attemptCount === 1 ? "" : "s"}` : "Open"}</small>
         </button>
     `).join("");
 }
@@ -272,8 +351,34 @@ function renderPuzzleMeta(puzzle, position = puzzlePosition) {
         const sourceLabel = puzzle.sourceName === "lichess" ? "Lichess" : "Starter Set";
         chips.push(`<span class="premium-badge${puzzle.sourceName === "lichess" ? " premium" : ""}">${escapeHtml(sourceLabel)}</span>`);
     }
+    if (puzzle.solved) {
+        chips.push('<span class="premium-badge premium">Solved</span>');
+    } else if (puzzle.attemptCount > 0) {
+        chips.push(`<span class="premium-badge">${escapeHtml(`${puzzle.attemptCount} attempt${puzzle.attemptCount === 1 ? "" : "s"}`)}</span>`);
+    }
 
     puzzleMeta.innerHTML = chips.join("");
+}
+
+function updatePuzzleProgress(progress) {
+    if (!progress || !currentPuzzle) return;
+
+    currentPuzzle = {
+        ...currentPuzzle,
+        attemptCount: Number(progress.attemptCount || 0),
+        solved: progress.solved === true,
+        solvedAt: progress.solvedAt || null,
+        lastAttemptAt: progress.lastAttemptAt || null
+    };
+
+    puzzleCatalog = puzzleCatalog.map((puzzle) => (
+        String(puzzle.id) === String(currentPuzzle.id)
+            ? { ...puzzle, ...currentPuzzle }
+            : puzzle
+    ));
+
+    renderPuzzleList(puzzleCatalog);
+    renderPuzzleMeta(currentPuzzle, puzzlePosition);
 }
 
 function renderBoardAxes() {
@@ -857,6 +962,7 @@ function handleSquareClick(row, col) {
     );
 
     if (!isLegal) {
+        playUiSound("warning");
         setPuzzleMessage("That move is not legal in this position.", "warning");
         return;
     }
@@ -897,11 +1003,15 @@ async function submitAttempt(moveUci, moveMeta) {
             puzzleSolved = true;
             renderPuzzleBoard();
         }
+        playUiSound("success");
+        updatePuzzleProgress(data.progress || null);
         setPuzzleMessage(data.message || "Correct move.", "success");
         revealSolution(data.solutionMoves || []);
         return;
     }
 
+    playUiSound("warning");
+    updatePuzzleProgress(data.progress || null);
     setPuzzleMessage(data.message || "Try again.", "warning");
 }
 
@@ -924,7 +1034,8 @@ function revealSolution(solutionMoves) {
     }
 
     const line = formatPuzzlePv(solutionMoves || [], currentPuzzle.fen);
-    puzzleSolution.textContent = line ? `Solution line: ${line}` : "No stored line.";
+    const solvedMeta = currentPuzzle?.solvedAt ? ` Solved on ${formatDateTimeLabel(currentPuzzle.solvedAt)}.` : "";
+    puzzleSolution.textContent = line ? `Solution line: ${line}.${solvedMeta}`.trim() : "No stored line.";
     puzzleSolution.classList.remove("hidden");
 }
 

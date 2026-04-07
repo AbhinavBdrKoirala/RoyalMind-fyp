@@ -3274,6 +3274,10 @@ body.puzzles-page .premium-nav a[href="puzzles.html"] {
     box-shadow: 0 14px 28px rgba(72, 96, 53, 0.18);
 }
 
+.premium-puzzle-list-item.solved {
+    border-color: rgba(151, 191, 115, 0.24);
+}
+
 .premium-board-wrap {
     display: grid;
     place-items: center;
@@ -3476,6 +3480,10 @@ body.puzzles-page .legal-target-dot {
 
 .lesson-card-actions {
     margin-top: 0;
+}
+
+.lesson-card .premium-footnote {
+    margin: -4px 0 0;
 }
 
 .lesson-tone-openings .lesson-card-media {

@@ -40,6 +40,7 @@ const appUi = window.RoyalMindUI || {
     notify: () => {},
     confirm: async () => false
 };
+let audioContext = null;
 
 const BOT_LEVELS = {
     easy: { label: "Easy Bot", depth: 1, thinkTime: 420 },
@@ -291,6 +292,16 @@ function initializeGameUi() {
     window.addEventListener("beforeunload", () => coachEngine?.dispose(), { once: true });
     syncFullscreenUi();
 
+    if (shouldNotifyGameStart()) {
+        const opponentLabel = getOpponentLabel();
+        appUi.notify(`Board ready against ${opponentLabel}.`, {
+            title: gameMode === "bot" ? "Bot game ready" : "Local game ready",
+            tone: "info",
+            duration: 1200
+        });
+        playUiSound("start");
+    }
+
     updateTimerDisplay();
     uiInitialized = true;
 }
@@ -503,6 +514,15 @@ function resetGameState(timeInSeconds = 600) {
 
     hideGameOverlay();
 
+    if (shouldNotifyGameStart()) {
+        appUi.notify(`New ${gameMode === "bot" ? "bot" : "local"} game started.`, {
+            title: "Game started",
+            tone: "info",
+            duration: 1100
+        });
+        playUiSound("start");
+    }
+
     updateTimerDisplay();
     createBoard();
 }
@@ -521,7 +541,7 @@ function updateTurnLabel() {
     turnLabel.textContent = currentTurn === "white" ? "White to move" : "Black to move";
 }
 
-function handleSquareClick(square) {
+async function handleSquareClick(square) {
     if (gameFinished) return;
 
     if (isBotTurn()) {
@@ -556,6 +576,19 @@ function handleSquareClick(square) {
         return;
     }
 
+    if (!isValidMove(selectedPiece.piece, selectedPiece.row, selectedPiece.col, row, col)) {
+        playUiSound("error");
+        showStatusMessage("Illegal move");
+        clearSelection();
+        createBoard();
+        return;
+    }
+
+    const confirmMove = await confirmMoveIfNeeded(selectedPiece, row, col);
+    if (!confirmMove) {
+        return;
+    }
+
     const moverColor = currentTurn;
     const preMoveAnalysis = coachEnabled && coachCurrentAnalysis && coachCurrentAnalysis.fen === buildFenFromCurrentState()
         ? coachCurrentAnalysis
@@ -566,6 +599,7 @@ function handleSquareClick(square) {
     });
 
     if (!moveResult.moved) {
+        playUiSound("error");
         showStatusMessage("Illegal move");
         clearSelection();
         createBoard();
@@ -1578,6 +1612,7 @@ function showGameOver(winnerColor, reason = "Checkmate") {
     if (text) {
         text.textContent = `${reason} - ${winnerColor} wins`;
     }
+    playUiSound("end");
     showGameOverlay();
 
     saveGameResult(winnerColor);
@@ -1594,6 +1629,7 @@ function showDraw(reason = "Draw") {
     if (text) {
         text.textContent = reason;
     }
+    playUiSound("end");
     showGameOverlay();
 
     saveGameResult("Draw");
@@ -1688,6 +1724,7 @@ function finalizeMoveRecord(moveMeta) {
         enPassantCapture
     };
 
+    playUiSound(captured ? "capture" : "move");
     syncRemoteGame();
 }
 
@@ -1760,10 +1797,11 @@ function saveGameResult(winnerColor) {
 
     const gameData = {
         user,
-        date: new Date().toLocaleString(),
+        date: new Date().toISOString(),
         winner: winnerColor,
         opponent: getOpponentLabel(),
         moves: moveSequence,
+        moveCount: moveSequence.length,
         movesHtml: document.getElementById("moveList")?.innerHTML || ""
     };
 
@@ -2051,6 +2089,122 @@ function normalizeAppearanceToken(value, fallback) {
         .replace(/^-+|-+$/g, "");
 
     return normalized || fallback;
+}
+
+function shouldRequireMoveConfirmation() {
+    return settingsCache.moveConfirm === true;
+}
+
+function shouldPlaySounds() {
+    return settingsCache.notifySounds !== false;
+}
+
+function shouldNotifyGameStart() {
+    return settingsCache.notifyGameStart !== false;
+}
+
+function getAudioContext() {
+    if (audioContext) return audioContext;
+
+    const AudioCtor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtor) return null;
+
+    audioContext = new AudioCtor();
+    return audioContext;
+}
+
+function playUiSound(kind = "move") {
+    if (!shouldPlaySounds()) return;
+
+    const context = getAudioContext();
+    if (!context) return;
+
+    const tones = {
+        start: { frequency: 520, duration: 0.1, type: "triangle", gain: 0.03 },
+        move: { frequency: 440, duration: 0.08, type: "triangle", gain: 0.026 },
+        capture: { frequency: 240, duration: 0.12, type: "square", gain: 0.025 },
+        error: { frequency: 190, duration: 0.09, type: "sawtooth", gain: 0.02 },
+        end: { frequency: 660, duration: 0.16, type: "triangle", gain: 0.03 }
+    };
+
+    const tone = tones[kind] || tones.move;
+
+    try {
+        if (context.state === "suspended") {
+            context.resume().catch(() => {});
+        }
+
+        const oscillator = context.createOscillator();
+        const gainNode = context.createGain();
+        const now = context.currentTime;
+
+        oscillator.type = tone.type;
+        oscillator.frequency.setValueAtTime(tone.frequency, now);
+        if (kind === "end") {
+            oscillator.frequency.linearRampToValueAtTime(520, now + tone.duration);
+        }
+
+        gainNode.gain.setValueAtTime(0.0001, now);
+        gainNode.gain.linearRampToValueAtTime(tone.gain, now + 0.01);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, now + tone.duration);
+
+        oscillator.connect(gainNode);
+        gainNode.connect(context.destination);
+        oscillator.start(now);
+        oscillator.stop(now + tone.duration + 0.02);
+    } catch {
+        // ignore audio errors
+    }
+}
+
+function getPieceName(piece) {
+    const type = piece?.[1];
+    if (type === "p") return "pawn";
+    if (type === "n") return "knight";
+    if (type === "b") return "bishop";
+    if (type === "r") return "rook";
+    if (type === "q") return "queen";
+    if (type === "k") return "king";
+    return "piece";
+}
+
+function getMovePreview(selected, targetRow, targetCol) {
+    const position = getCurrentPosition();
+    const specialMeta = getSpecialMoveMetaForBoard(
+        boardState,
+        selected.piece,
+        selected.row,
+        selected.col,
+        targetRow,
+        targetCol,
+        position
+    );
+    const capturedPiece = specialMeta.enPassantCapture
+        ? specialMeta.enPassantCapture.piece
+        : boardState[targetRow][targetCol];
+
+    return {
+        targetSquare: toAlgebraic(targetRow, targetCol),
+        capturedPiece
+    };
+}
+
+async function confirmMoveIfNeeded(selected, targetRow, targetCol) {
+    if (!shouldRequireMoveConfirmation()) return true;
+
+    const preview = getMovePreview(selected, targetRow, targetCol);
+    const pieceName = getPieceName(selected.piece);
+    const message = preview.capturedPiece
+        ? `Confirm ${pieceName} capture on ${preview.targetSquare}?`
+        : `Confirm ${pieceName} move to ${preview.targetSquare}?`;
+
+    return appUi.confirm({
+        title: "Confirm move",
+        message,
+        confirmLabel: "Play move",
+        cancelLabel: "Keep selecting",
+        tone: "info"
+    });
 }
 
 function applyAppearanceSettings() {

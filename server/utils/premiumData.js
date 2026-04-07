@@ -230,9 +230,36 @@ async function ensurePremiumSchema(pool) {
         )
     `);
 
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS puzzle_attempts (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            puzzle_id INTEGER NOT NULL REFERENCES puzzles(id) ON DELETE CASCADE,
+            attempted_move VARCHAR(12) NOT NULL,
+            was_correct BOOLEAN NOT NULL DEFAULT FALSE,
+            attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS video_progress (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            lesson_id INTEGER NOT NULL REFERENCES video_lessons(id) ON DELETE CASCADE,
+            opened_count INTEGER NOT NULL DEFAULT 0,
+            completed BOOLEAN NOT NULL DEFAULT FALSE,
+            last_opened_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE (user_id, lesson_id)
+        )
+    `);
+
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_puzzles_premium ON puzzles(is_premium)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_video_lessons_premium ON video_lessons(is_premium)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_puzzle_attempts_user_puzzle ON puzzle_attempts(user_id, puzzle_id, attempted_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_video_progress_user_lesson ON video_progress(user_id, lesson_id)`);
 
     for (const plan of DEFAULT_PLANS) {
         await pool.query(

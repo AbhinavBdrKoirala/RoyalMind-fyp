@@ -31,6 +31,38 @@ function redirectToLogin(message) {
     }, 700);
 }
 
+function getLocalePreferences() {
+    try {
+        const settings = JSON.parse(localStorage.getItem("royalmindSettings")) || {};
+        const localeMap = {
+            English: "en-US",
+            Spanish: "es-ES",
+            French: "fr-FR"
+        };
+
+        return {
+            locale: localeMap[settings.language] || "en-US",
+            timeZone: settings.timeZone && settings.timeZone !== "Local device time" ? settings.timeZone : undefined
+        };
+    } catch {
+        return { locale: "en-US", timeZone: undefined };
+    }
+}
+
+function formatDateTimeLabel(value) {
+    if (!value) return "";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const { locale, timeZone } = getLocalePreferences();
+    return date.toLocaleString(locale, {
+        dateStyle: "medium",
+        timeStyle: "short",
+        ...(timeZone ? { timeZone } : {})
+    });
+}
+
 function getLessonTone(category) {
     const value = String(category || "").toLowerCase();
     if (value.includes("opening")) return "openings";
@@ -99,12 +131,13 @@ function renderLessons(lessons, isPremium) {
             <p class="premium-muted">${escapeHtml(lesson.description || "")}</p>
             <div class="lesson-card-meta">
                 <span>${lesson.locked ? "Subscriber collection" : "Free collection"}</span>
-                <span>${escapeHtml(lesson.category || "General study")}</span>
+                <span>${lesson.openedCount > 0 ? `Opened ${lesson.openedCount}x` : escapeHtml(lesson.category || "General study")}</span>
             </div>
+            ${lesson.lastOpenedAt ? `<p class="premium-footnote">Last opened ${escapeHtml(formatDateTimeLabel(lesson.lastOpenedAt))}</p>` : ""}
             <div class="premium-actions-row lesson-card-actions">
                 ${lesson.locked
                     ? '<a class="premium-primary-link" href="subscription.html">Unlock Premium</a><a class="premium-secondary-link" href="subscription.html">View Plan</a>'
-                    : `<a class="premium-primary-link" href="${escapeAttribute(lesson.youtubeUrl || lesson.previewUrl || "#")}" target="_blank" rel="noreferrer">Open on YouTube</a><a class="premium-secondary-link" href="subscription.html">See Premium</a>`
+                    : `<a class="premium-primary-link" data-open-lesson-id="${lesson.id}" href="${escapeAttribute(lesson.youtubeUrl || lesson.previewUrl || "#")}" target="_blank" rel="noreferrer">Open on YouTube</a><a class="premium-secondary-link" href="subscription.html">See Premium</a>`
                 }
             </div>
         </article>
@@ -132,6 +165,22 @@ function renderLessonSummary(lessons) {
             <span>Study categories</span>
         </article>
     `;
+}
+
+async function trackLessonOpen(lessonId) {
+    const response = await apiFetch(`/api/premium/videos/${lessonId}/open`, {
+        method: "POST"
+    });
+
+    if (!response) return null;
+    if (response.status === 401 || response.status === 403) {
+        redirectToLogin("Your session expired. Please log in again.");
+        return null;
+    }
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    return data.progress || null;
 }
 
 async function initLessons() {
@@ -172,5 +221,20 @@ function escapeHtml(value) {
 function escapeAttribute(value) {
     return escapeHtml(value);
 }
+
+lessonGrid?.addEventListener("click", async (event) => {
+    const link = event.target.closest("[data-open-lesson-id]");
+    if (!link) return;
+
+    event.preventDefault();
+
+    const lessonId = link.dataset.openLessonId;
+    const href = link.getAttribute("href") || "#";
+    if (!lessonId || href === "#") return;
+
+    window.open(href, "_blank", "noopener,noreferrer");
+    await trackLessonOpen(lessonId);
+    initLessons();
+});
 
 initLessons();

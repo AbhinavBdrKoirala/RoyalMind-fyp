@@ -53,6 +53,35 @@ function getStoredSettings() {
     }
 }
 
+function getLocalePreferences() {
+    const settings = getStoredSettings();
+    const localeMap = {
+        English: "en-US",
+        Spanish: "es-ES",
+        French: "fr-FR"
+    };
+
+    return {
+        locale: localeMap[settings.language] || "en-US",
+        timeZone: settings.timeZone && settings.timeZone !== "Local device time" ? settings.timeZone : undefined
+    };
+}
+
+function formatDateTime(value) {
+    if (!value) return "Unknown date";
+
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "Unknown date";
+
+    const { locale, timeZone } = getLocalePreferences();
+
+    return date.toLocaleString(locale, {
+        dateStyle: "medium",
+        timeStyle: "short",
+        ...(timeZone ? { timeZone } : {})
+    });
+}
+
 function normalizeAppearanceToken(value, fallback) {
     const normalized = String(value || "")
         .trim()
@@ -129,7 +158,9 @@ function getLocalGames() {
 function normalizeServerGames(games) {
     return games.map(game => {
         let moves = null;
-        if (typeof game.moves === "string") {
+        if (Array.isArray(game.moves_json)) {
+            moves = game.moves_json;
+        } else if (typeof game.moves === "string") {
             try {
                 moves = JSON.parse(game.moves);
             } catch {
@@ -143,11 +174,12 @@ function normalizeServerGames(games) {
 
         return {
             id: game.id,
-            date: playedAt ? playedAt.toLocaleString() : "Unknown date",
+            date: formatDateTime(playedAt),
             timestamp: playedAt ? playedAt.getTime() : 0,
             winner: game.result || "Unknown",
             opponent: game.opponent || "Local",
-            moves
+            moves,
+            moveCount: Number(game.move_count || (Array.isArray(moves) ? moves.length : 0))
         };
     });
 }
@@ -157,11 +189,12 @@ function normalizeLocalGames(games) {
         const dateObj = game.date ? new Date(game.date) : null;
         return {
             id: game.id || `local-${index}`,
-            date: game.date || "Unknown date",
+            date: formatDateTime(dateObj),
             timestamp: dateObj ? dateObj.getTime() : 0,
             winner: game.winner || "Unknown",
             opponent: game.opponent || "Local",
-            moves: Array.isArray(game.moves) ? game.moves : null
+            moves: Array.isArray(game.moves) ? game.moves : null,
+            moveCount: Array.isArray(game.moves) ? game.moves.length : 0
         };
     });
 }
@@ -187,7 +220,7 @@ function applyFilters() {
     filteredGames = allGames.filter(game => {
         const matchesResult = resultValue === "any" || game.winner === resultValue;
         const matchesOpponent = !opponentValue || game.opponent.toLowerCase().includes(opponentValue);
-        const moveCount = Array.isArray(game.moves) ? game.moves.length : 0;
+        const moveCount = Number(game.moveCount || (Array.isArray(game.moves) ? game.moves.length : 0));
         const matchesMoves = !minMoves || moveCount >= minMoves;
         return matchesResult && matchesOpponent && matchesMoves;
     });
@@ -229,7 +262,7 @@ function renderList(games) {
             <div class="history-cell">
                 <span class="history-result-pill">${game.winner || "Unknown"}</span>
             </div>
-            <div class="history-cell">${Array.isArray(game.moves) ? game.moves.length : 0}</div>
+            <div class="history-cell">${Number(game.moveCount || (Array.isArray(game.moves) ? game.moves.length : 0))}</div>
             <div class="history-cell">${game.date || "Unknown date"}</div>
             <div class="history-cell history-cell-actions">
                 <button class="history-mini-btn" data-action="review" data-id="${game.id}" data-display="${displayNumber}">Review</button>
