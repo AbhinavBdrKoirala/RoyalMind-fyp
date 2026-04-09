@@ -1,6 +1,7 @@
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^[+]?[0-9()\-\s]{7,20}$/;
 const PIECE_REGEX = /^[wb][prnbqk]$/;
+const NEPAL_MOBILE_REGEX = /^9[78]\d{8}$/;
 
 const SETTINGS_SPEC = {
     language: ["English", "Spanish", "French"],
@@ -44,12 +45,32 @@ function normalizeOptionalString(value, maxLength) {
     return maxLength ? normalized.slice(0, maxLength) : normalized;
 }
 
+function normalizeNepalPhone(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+
+    let normalized = raw.replace(/[\s()-]/g, "");
+    if (normalized.startsWith("+")) {
+        normalized = normalized.slice(1);
+    }
+
+    if (normalized.startsWith("977")) {
+        normalized = normalized.slice(3);
+    }
+
+    if (!NEPAL_MOBILE_REGEX.test(normalized)) {
+        return "";
+    }
+
+    return `+977${normalized}`;
+}
+
 function validateRegisterPayload(input) {
     const firstName = normalizeRequiredString(input?.firstName);
     const lastName = normalizeRequiredString(input?.lastName);
     const username = normalizeRequiredString(input?.username);
     const phone = normalizeRequiredString(input?.phone);
-    const country = normalizeRequiredString(input?.country);
+    const country = normalizeRequiredString(input?.country) || "Nepal";
     const email = normalizeRequiredString(input?.email).toLowerCase();
     const password = String(input?.password || "");
 
@@ -65,6 +86,15 @@ function validateRegisterPayload(input) {
         return { ok: false, error: "Invalid phone number format" };
     }
 
+    const normalizedPhone = normalizeNepalPhone(phone);
+    if (!normalizedPhone) {
+        return { ok: false, error: "Please enter a valid Nepal mobile number" };
+    }
+
+    if (country !== "Nepal") {
+        return { ok: false, error: "Registration is currently available only for Nepal" };
+    }
+
     if (!EMAIL_REGEX.test(email)) {
         return { ok: false, error: "Invalid email format" };
     }
@@ -77,8 +107,8 @@ function validateRegisterPayload(input) {
             firstName,
             lastName,
             username,
-            phone,
-            country,
+            phone: normalizedPhone,
+            country: "Nepal",
             email,
             password,
             displayName
@@ -317,6 +347,7 @@ module.exports = {
     PHONE_REGEX,
     SETTINGS_KEYS,
     sanitizeSettings,
+    normalizeNepalPhone,
     validateGameSavePayload,
     validateGameStartPayload,
     validateGameUpdatePayload,

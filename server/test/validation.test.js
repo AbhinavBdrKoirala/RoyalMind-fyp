@@ -50,8 +50,8 @@ runTest("validateRegisterPayload normalizes and accepts valid registration data"
         firstName: "  Ada ",
         lastName: " Lovelace ",
         username: "  ada ",
-        phone: "+1 555 123 4567",
-        country: "United Kingdom",
+        phone: " 9812345678 ",
+        country: "Nepal",
         email: " Ada@example.com ",
         password: "password123"
     });
@@ -61,11 +61,39 @@ runTest("validateRegisterPayload normalizes and accepts valid registration data"
         firstName: "Ada",
         lastName: "Lovelace",
         username: "ada",
-        phone: "+1 555 123 4567",
-        country: "United Kingdom",
+        phone: "+9779812345678",
+        country: "Nepal",
         email: "ada@example.com",
         password: "password123",
         displayName: "ada"
+    });
+});
+
+runTest("validateRegisterPayload rejects non-Nepal registrations", () => {
+    assert.deepEqual(validateRegisterPayload({
+        firstName: "A",
+        lastName: "B",
+        username: "ab",
+        phone: "9812345678",
+        country: "India",
+        email: "ab@example.com",
+        password: "password123"
+    }), {
+        ok: false,
+        error: "Registration is currently available only for Nepal"
+    });
+
+    assert.deepEqual(validateRegisterPayload({
+        firstName: "A",
+        lastName: "B",
+        username: "ab",
+        phone: "1234567890",
+        country: "Nepal",
+        email: "ab@example.com",
+        password: "password123"
+    }), {
+        ok: false,
+        error: "Please enter a valid Nepal mobile number"
     });
 });
 

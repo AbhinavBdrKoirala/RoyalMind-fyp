@@ -12,12 +12,30 @@ const lastNameInput = document.getElementById("lastName");
 const usernameInput = document.getElementById("username");
 const phoneInput = document.getElementById("phone");
 const countryInput = document.getElementById("country");
+const verificationFields = document.getElementById("verificationFields");
+const verificationCodeInput = document.getElementById("verificationCode");
+const verificationHint = document.getElementById("verificationHint");
+const resendVerificationBtn = document.getElementById("resendVerificationBtn");
 const appUi = window.RoyalMindUI || {
     notify: () => {},
     confirm: async () => false
 };
 
 let isRegisterMode = false;
+let awaitingVerification = false;
+let pendingVerificationEmail = "";
+
+function formatVerificationHelp(data) {
+    if (data?.deliveryMethod === "email") {
+        return `A 6-digit verification code was sent to ${data.email}.`;
+    }
+
+    if (data?.devVerificationCode) {
+        return `Email sending is not configured yet. Use this local verification code: ${data.devVerificationCode}`;
+    }
+
+    return "Enter the 6-digit verification code sent to your email.";
+}
 
 function buildStoredUser(user, fallbackEmail) {
     if (!user || typeof user !== "object") {
@@ -39,6 +57,8 @@ function buildStoredUser(user, fallbackEmail) {
 
 function setMode(registerMode) {
     isRegisterMode = registerMode;
+    awaitingVerification = false;
+    pendingVerificationEmail = "";
 
     if (!modeToggle || !submitButton || !formTitle || !formSubtitle) {
         return;
@@ -51,6 +71,10 @@ function setMode(registerMode) {
         modeToggle.textContent = "Already have an account? Log In";
         if (registerFields) registerFields.classList.remove("hidden");
         if (confirmPasswordInput) confirmPasswordInput.classList.remove("hidden");
+        if (verificationFields) verificationFields.classList.add("hidden");
+        if (resendVerificationBtn) resendVerificationBtn.classList.add("hidden");
+        if (verificationCodeInput) verificationCodeInput.required = false;
+        if (verificationHint) verificationHint.textContent = "We will send a 6-digit verification code to your email before creating the account.";
 
         if (firstNameInput) firstNameInput.required = true;
         if (lastNameInput) lastNameInput.required = true;
@@ -58,6 +82,7 @@ function setMode(registerMode) {
         if (phoneInput) phoneInput.required = true;
         if (countryInput) countryInput.required = true;
         if (confirmPasswordInput) confirmPasswordInput.required = true;
+        if (countryInput) countryInput.value = "Nepal";
     } else {
         formTitle.textContent = "Log In";
         formSubtitle.textContent = "Welcome back. Continue your chess journey.";
@@ -65,6 +90,11 @@ function setMode(registerMode) {
         modeToggle.textContent = "No account? Register";
         if (registerFields) registerFields.classList.add("hidden");
         if (confirmPasswordInput) confirmPasswordInput.classList.add("hidden");
+        if (verificationFields) verificationFields.classList.add("hidden");
+        if (resendVerificationBtn) resendVerificationBtn.classList.add("hidden");
+        if (verificationCodeInput) verificationCodeInput.required = false;
+        if (verificationCodeInput) verificationCodeInput.value = "";
+        if (verificationHint) verificationHint.textContent = "We will send a 6-digit verification code to your email before creating the account.";
 
         if (firstNameInput) firstNameInput.required = false;
         if (lastNameInput) lastNameInput.required = false;
@@ -73,6 +103,52 @@ function setMode(registerMode) {
         if (countryInput) countryInput.required = false;
         if (confirmPasswordInput) confirmPasswordInput.required = false;
     }
+}
+
+function enterVerificationStep(data = {}) {
+    awaitingVerification = true;
+    pendingVerificationEmail = data.email || (document.getElementById("email")?.value.trim().toLowerCase() || "");
+
+    if (formTitle) formTitle.textContent = "Verify Account";
+    if (formSubtitle) formSubtitle.textContent = "Enter the verification code to finish creating your account.";
+    if (submitButton) submitButton.textContent = "Verify Code";
+    if (modeToggle) modeToggle.textContent = "Back to Log In";
+    if (confirmPasswordInput) confirmPasswordInput.classList.add("hidden");
+    if (verificationFields) verificationFields.classList.remove("hidden");
+    if (verificationCodeInput) {
+        verificationCodeInput.required = true;
+        verificationCodeInput.value = "";
+        verificationCodeInput.focus();
+    }
+    if (verificationHint) {
+        verificationHint.textContent = formatVerificationHelp(data);
+    }
+    if (resendVerificationBtn) {
+        resendVerificationBtn.classList.remove("hidden");
+    }
+}
+
+function completeLogin(data, fallbackEmail) {
+    const storedUser = buildStoredUser(data.user, fallbackEmail);
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("royalmindUser", JSON.stringify(storedUser));
+
+    if (storedUser.settings) {
+        localStorage.setItem("royalmindSettings", JSON.stringify({
+            displayName: storedUser.displayName,
+            ...storedUser.settings
+        }));
+    }
+
+    appUi.notify("Welcome back. Taking you to your dashboard.", {
+        title: "Login successful",
+        tone: "success",
+        duration: 900
+    });
+
+    setTimeout(() => {
+        window.location.href = "dashboard.html";
+    }, 650);
 }
 
 if (modeToggle) {
@@ -101,6 +177,35 @@ if (loginForm) {
         const password = document.getElementById("password").value;
         const endpoint = isRegisterMode ? "register" : "login";
 
+        if (isRegisterMode && awaitingVerification) {
+            try {
+                const response = await postAuthRequest("verify-registration", {
+                    email: pendingVerificationEmail || email,
+                    code: verificationCodeInput ? verificationCodeInput.value.trim() : ""
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    appUi.notify(data.error || "Verification failed.", {
+                        title: "Could not verify account",
+                        tone: "error"
+                    });
+                    return;
+                }
+
+                completeLogin(data, pendingVerificationEmail || email);
+                return;
+            } catch (error) {
+                console.error(error);
+                appUi.notify("Cannot connect to the server right now. Please make sure the backend is running on port 7000.", {
+                    title: "Connection problem",
+                    tone: "error",
+                    duration: 4200
+                });
+                return;
+            }
+        }
+
         if (isRegisterMode) {
             const confirmPassword = confirmPasswordInput ? confirmPasswordInput.value : "";
             const phone = phoneInput ? phoneInput.value.trim() : "";
@@ -121,8 +226,8 @@ if (loginForm) {
                 return;
             }
 
-            if (!/^[+]?[0-9()\-\s]{7,20}$/.test(phone)) {
-                appUi.notify("Please enter a valid phone number.", {
+            if (!/^(?:\+?977)?(?:9[78]\d{8})$/.test(phone.replace(/[\s()-]/g, ""))) {
+                appUi.notify("Please enter a valid Nepal mobile number.", {
                     title: "Phone number needed",
                     tone: "warning"
                 });
@@ -156,37 +261,27 @@ if (loginForm) {
 
             if (response.ok) {
                 if (isRegisterMode) {
-                    appUi.notify("Your account has been created. Log in to start playing.", {
-                        title: "Registration successful",
+                    appUi.notify("Verification code sent. Enter it to finish your account.", {
+                        title: "Check your email",
                         tone: "success"
                     });
-                    loginForm.reset();
-                    setMode(false);
+                    enterVerificationStep(data);
                     return;
                 }
 
-                const storedUser = buildStoredUser(data.user, email);
-                localStorage.setItem("token", data.token);
-                localStorage.setItem("royalmindUser", JSON.stringify(storedUser));
-
-                if (storedUser.settings) {
-                    localStorage.setItem("royalmindSettings", JSON.stringify({
-                        displayName: storedUser.displayName,
-                        ...storedUser.settings
-                    }));
-                }
-
-                appUi.notify("Welcome back. Taking you to your dashboard.", {
-                    title: "Login successful",
-                    tone: "success",
-                    duration: 900
-                });
-
-                setTimeout(() => {
-                    window.location.href = "dashboard.html";
-                }, 650);
+                completeLogin(data, email);
             } else {
                 if (!isRegisterMode) {
+                    if (data.requiresVerification) {
+                        setMode(true);
+                        enterVerificationStep(data);
+                        appUi.notify(data.error || "Please verify your account first.", {
+                            title: "Verification needed",
+                            tone: "warning",
+                            duration: 3600
+                        });
+                        return;
+                    }
                     appUi.notify(data.error || "Login failed.", {
                         title: "Could not log in",
                         tone: "error",
@@ -210,6 +305,40 @@ if (loginForm) {
         }
     });
 }
+
+resendVerificationBtn?.addEventListener("click", async () => {
+    const email = pendingVerificationEmail || document.getElementById("email")?.value.trim().toLowerCase();
+    const phone = phoneInput ? phoneInput.value.trim() : "";
+
+    try {
+        const response = await postAuthRequest("resend-verification", { email, phone });
+        const data = await response.json();
+
+        if (!response.ok) {
+            appUi.notify(data.error || "Unable to resend the verification code.", {
+                title: "Resend failed",
+                tone: "error"
+            });
+            return;
+        }
+
+        if (verificationHint) {
+            verificationHint.textContent = formatVerificationHelp(data);
+        }
+
+        appUi.notify("A fresh verification code has been sent.", {
+            title: "Code sent",
+            tone: "success"
+        });
+    } catch (error) {
+        console.error(error);
+        appUi.notify("Cannot connect to the server right now. Please make sure the backend is running on port 7000.", {
+            title: "Connection problem",
+            tone: "error",
+            duration: 4200
+        });
+    }
+});
 
 async function postAuthRequest(endpoint, payload) {
     const apiBases = ["http://127.0.0.1:7000", "http://localhost:7000"];

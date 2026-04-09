@@ -567,6 +567,19 @@ body.home-page {
     margin-bottom: 0;
 }
 
+.verification-hint {
+    margin: 10px 0 0;
+    color: #b7c5ad;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: left;
+}
+
+.verification-resend {
+    margin-top: 8px;
+    padding: 0;
+}
+
 .password-field {
     position: relative;
     margin-bottom: 12px;

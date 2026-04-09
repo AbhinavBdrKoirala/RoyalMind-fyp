@@ -54,19 +54,9 @@
                         <input type="text" id="lastName" placeholder="Last name" autocomplete="family-name" />
                     </div>
                     <input type="text" id="username" placeholder="Username" autocomplete="username" />
-                    <input type="tel" id="phone" placeholder="Phone number" autocomplete="tel" />
-                    <select id="country" aria-label="Country">
-                        <option value="">Select country</option>
-                        <option value="United States">United States</option>
-                        <option value="Canada">Canada</option>
-                        <option value="United Kingdom">United Kingdom</option>
-                        <option value="Australia">Australia</option>
-                        <option value="India">India</option>
-                        <option value="Germany">Germany</option>
-                        <option value="France">France</option>
-                        <option value="Brazil">Brazil</option>
-                        <option value="Japan">Japan</option>
-                        <option value="Other">Other</option>
+                    <input type="tel" id="phone" placeholder="Nepal mobile number" autocomplete="tel" />
+                    <select id="country" aria-label="Country" disabled>
+                        <option value="Nepal" selected>Nepal</option>
                     </select>
                 </div>
                 <input type="email" id="email" placeholder="Email" required />
@@ -81,6 +71,11 @@
                     </button>
                 </div>
                 <input type="password" id="confirmPassword" class="register-fields hidden" placeholder="Confirm password" />
+                <div id="verificationFields" class="register-fields hidden">
+                    <input type="text" id="verificationCode" placeholder="Verification code" inputmode="numeric" autocomplete="one-time-code" />
+                    <p id="verificationHint" class="verification-hint">We will send a 6-digit verification code to your email before creating the account.</p>
+                    <button type="button" id="resendVerificationBtn" class="mode-toggle verification-resend hidden">Resend code</button>
+                </div>
                 <button type="submit" id="submitButton">Log In</button>
             </form>
             <button type="button" id="modeToggle" class="mode-toggle">No account? Register</button>
