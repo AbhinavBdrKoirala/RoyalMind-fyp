@@ -269,6 +269,12 @@ router.post('/register', async (req, res) => {
         if (error.code === 'ECONNREFUSED') {
             return res.status(500).json({ error: "Database connection refused. Ensure PostgreSQL is running." });
         }
+        if (error.code === 'EAUTH' || error.responseCode === 535) {
+            return res.status(500).json({ error: "Gmail rejected the sign-in. Check GMAIL_USER and the Gmail app password in server/.env." });
+        }
+        if (['EACCES', 'ECONNECTION', 'ESOCKET', 'ETIMEDOUT', 'ENETUNREACH', 'EHOSTUNREACH'].includes(error.code)) {
+            return res.status(500).json({ error: "Could not connect to Gmail SMTP. Check internet access, firewall rules, or Gmail SMTP settings." });
+        }
         res.status(500).json({ error: "Registration failed. Please try again." });
     }
 });
@@ -439,6 +445,12 @@ router.post('/resend-verification', async (req, res) => {
         });
     } catch (error) {
         console.error(error);
+        if (error.code === 'EAUTH' || error.responseCode === 535) {
+            return res.status(500).json({ error: "Gmail rejected the sign-in. Check GMAIL_USER and the Gmail app password in server/.env." });
+        }
+        if (['EACCES', 'ECONNECTION', 'ESOCKET', 'ETIMEDOUT', 'ENETUNREACH', 'EHOSTUNREACH'].includes(error.code)) {
+            return res.status(500).json({ error: "Could not connect to Gmail SMTP. Check internet access, firewall rules, or Gmail SMTP settings." });
+        }
         res.status(500).json({ error: "Unable to resend verification code" });
     }
 });

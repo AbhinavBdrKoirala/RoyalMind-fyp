@@ -3,6 +3,20 @@ const nodemailer = require("nodemailer");
 const { getJwtSecret } = require("./jwt");
 
 let cachedTransporter = null;
+let cachedTransporterKey = "";
+
+const PLACEHOLDER_VALUES = new Set([
+    "",
+    "yourgmail@gmail.com",
+    "your_16_character_app_password",
+    "RoyalMind <yourgmail@gmail.com>",
+    "replace_with_a_strong_random_secret"
+]);
+
+function hasConfiguredValue(value) {
+    const normalized = String(value || "").trim();
+    return normalized && !PLACEHOLDER_VALUES.has(normalized);
+}
 
 function getVerificationSecret() {
     return process.env.VERIFICATION_SECRET || getJwtSecret();
@@ -20,17 +34,47 @@ function hashVerificationCode(code) {
 }
 
 function isMailConfigured() {
+    const hasGmailConfig = Boolean(
+        hasConfiguredValue(process.env.GMAIL_USER) &&
+        hasConfiguredValue(process.env.GMAIL_APP_PASSWORD)
+    );
+
+    if (hasGmailConfig) {
+        return true;
+    }
+
     return Boolean(
-        process.env.SMTP_HOST &&
-        process.env.SMTP_PORT &&
-        process.env.SMTP_USER &&
-        process.env.SMTP_PASS &&
-        process.env.MAIL_FROM
+        hasConfiguredValue(process.env.SMTP_HOST) &&
+        hasConfiguredValue(process.env.SMTP_PORT) &&
+        hasConfiguredValue(process.env.SMTP_USER) &&
+        hasConfiguredValue(process.env.SMTP_PASS) &&
+        hasConfiguredValue(process.env.MAIL_FROM)
     );
 }
 
 function getTransporter() {
-    if (cachedTransporter) return cachedTransporter;
+    const transporterKey = JSON.stringify({
+        gmailUser: process.env.GMAIL_USER || "",
+        smtpHost: process.env.SMTP_HOST || "",
+        smtpPort: process.env.SMTP_PORT || "",
+        smtpUser: process.env.SMTP_USER || ""
+    });
+
+    if (cachedTransporter && cachedTransporterKey === transporterKey) {
+        return cachedTransporter;
+    }
+
+    if (hasConfiguredValue(process.env.GMAIL_USER) && hasConfiguredValue(process.env.GMAIL_APP_PASSWORD)) {
+        cachedTransporter = nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+                user: process.env.GMAIL_USER,
+                pass: process.env.GMAIL_APP_PASSWORD
+            }
+        });
+        cachedTransporterKey = transporterKey;
+        return cachedTransporter;
+    }
 
     cachedTransporter = nodemailer.createTransport({
         host: process.env.SMTP_HOST,
@@ -41,8 +85,13 @@ function getTransporter() {
             pass: process.env.SMTP_PASS
         }
     });
+    cachedTransporterKey = transporterKey;
 
     return cachedTransporter;
+}
+
+function getMailFromAddress() {
+    return process.env.MAIL_FROM || process.env.GMAIL_USER || process.env.SMTP_USER || "";
 }
 
 async function sendVerificationEmail({ email, displayName, code }) {
@@ -55,7 +104,7 @@ async function sendVerificationEmail({ email, displayName, code }) {
 
     const transporter = getTransporter();
     await transporter.sendMail({
-        from: process.env.MAIL_FROM,
+        from: getMailFromAddress(),
         to: email,
         subject: "RoyalMind verification code",
         text: [
