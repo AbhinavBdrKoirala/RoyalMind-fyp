@@ -7,6 +7,7 @@
     "start": "node index.js",
     "dev": "node index.js",
     "test": "node test/validation.test.js",
+    "test:auth-smoke": "node scripts/run-auth-smoke.js",
     "import:puzzles": "node scripts/import-lichess-puzzles.js"
   },
   "keywords": [],

@@ -25,6 +25,9 @@ GMAIL_USER=yourgmail@gmail.com
 GMAIL_APP_PASSWORD=your_16_character_app_password
 MAIL_FROM="RoyalMind <yourgmail@gmail.com>"
 VERIFICATION_SECRET=replace_with_a_different_secure_secret
+NODE_ENV=production
+MAIL_FORCE_DEV=false
+UNVERIFIED_ACCOUNT_RETENTION_HOURS=72
 ```
 
 `MAIL_FROM` can be the same Gmail address.
@@ -49,8 +52,11 @@ npm.cmd start
 2. Register with a fresh email and a fresh Nepal phone number
 3. Check the Gmail inbox of the registered email address
 4. Enter the 6-digit verification code
+5. Use `Forgot password?` on the sign-in page to test password reset emails
+6. Open Settings and test the email change flow
 
 ## Notes
 
 - Phone numbers are unique in the app, but phone OTP/SMS is not used.
-- If Gmail is not configured, the app falls back to development-mode verification codes.
+- In production, the app will not expose development codes.
+- `MAIL_FORCE_DEV=true` is useful only for local testing.

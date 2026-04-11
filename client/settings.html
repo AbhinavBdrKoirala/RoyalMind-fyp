@@ -276,14 +276,37 @@
                             <h3>Email address</h3>
                             <p id="accountEmail">player@royalmind.app</p>
                         </div>
-                        <button class="settings-secondary" type="button">Update</button>
+                        <button id="toggleEmailChange" class="settings-secondary" type="button">Update</button>
+                    </div>
+                    <div id="emailChangePanel" class="settings-inline-panel hidden">
+                        <label class="settings-field full">
+                            New Email
+                            <input id="newEmail" type="email" placeholder="newemail@example.com" />
+                        </label>
+                        <label class="settings-field full">
+                            Current Password
+                            <input id="emailChangePassword" type="password" placeholder="Current password" />
+                        </label>
+                        <div class="settings-inline-actions">
+                            <button id="requestEmailChange" class="settings-secondary" type="button">Send Code</button>
+                            <button id="resendEmailChange" class="settings-secondary hidden" type="button">Resend Code</button>
+                        </div>
+                        <label class="settings-field full">
+                            Confirmation Code
+                            <input id="emailChangeCode" type="text" inputmode="numeric" placeholder="6-digit code" />
+                        </label>
+                        <div class="settings-inline-actions">
+                            <button id="confirmEmailChange" class="settings-save" type="button">Confirm Email</button>
+                            <button id="cancelEmailChange" class="settings-secondary" type="button">Cancel</button>
+                        </div>
+                        <p id="emailChangeHint" class="settings-inline-hint">We will send a 6-digit code to your new email address.</p>
                     </div>
                     <div class="settings-row">
                         <div>
                             <h3>Change password</h3>
-                            <p>Keep your account protected.</p>
+                            <p id="passwordResetStatus">Send a reset code to your current email.</p>
                         </div>
-                        <button class="settings-secondary" type="button">Reset</button>
+                        <button id="sendPasswordReset" class="settings-secondary" type="button">Reset</button>
                     </div>
                     <div class="settings-row">
                         <div>

@@ -43,6 +43,18 @@ const accountEmail = document.getElementById("accountEmail");
 const toast = document.getElementById("settingsToast");
 const menuLinks = Array.from(document.querySelectorAll(".settings-menu-link"));
 const panels = Array.from(document.querySelectorAll(".settings-panel"));
+const toggleEmailChangeButton = document.getElementById("toggleEmailChange");
+const emailChangePanel = document.getElementById("emailChangePanel");
+const newEmailInput = document.getElementById("newEmail");
+const emailChangePasswordInput = document.getElementById("emailChangePassword");
+const emailChangeCodeInput = document.getElementById("emailChangeCode");
+const requestEmailChangeButton = document.getElementById("requestEmailChange");
+const resendEmailChangeButton = document.getElementById("resendEmailChange");
+const confirmEmailChangeButton = document.getElementById("confirmEmailChange");
+const cancelEmailChangeButton = document.getElementById("cancelEmailChange");
+const emailChangeHint = document.getElementById("emailChangeHint");
+const sendPasswordResetButton = document.getElementById("sendPasswordReset");
+const passwordResetStatus = document.getElementById("passwordResetStatus");
 
 const DEFAULTS = {
     displayName: "RoyalMind Player",
@@ -63,6 +75,18 @@ const DEFAULTS = {
     privacyDM: true,
     privacyHistory: false
 };
+
+function formatDeliveryHint(data, fallback) {
+    if (data?.deliveryMethod === "email" && data.email) {
+        return `A 6-digit code was sent to ${data.email}.`;
+    }
+
+    if (data?.devVerificationCode) {
+        return `Local test code: ${data.devVerificationCode}`;
+    }
+
+    return fallback;
+}
 
 function parseStoredUser() {
     const raw = localStorage.getItem("royalmindUser");
@@ -199,6 +223,32 @@ function showToast(message, tone = "info", title = "Settings") {
     });
 }
 
+function getCurrentUser() {
+    return parseStoredUser() || {};
+}
+
+function setEmailChangePanelOpen(open) {
+    if (!emailChangePanel) return;
+    emailChangePanel.classList.toggle("hidden", !open);
+    if (!open) {
+        if (newEmailInput) newEmailInput.value = "";
+        if (emailChangePasswordInput) emailChangePasswordInput.value = "";
+        if (emailChangeCodeInput) emailChangeCodeInput.value = "";
+        if (emailChangeHint) emailChangeHint.textContent = "We will send a 6-digit code to your new email address.";
+        resendEmailChangeButton?.classList.add("hidden");
+    }
+}
+
+async function handleAuthFailure(response) {
+    if (!response || (response.status !== 401 && response.status !== 403)) {
+        return false;
+    }
+
+    localStorage.removeItem("token");
+    window.location.href = "index.html";
+    return true;
+}
+
 async function saveSettings() {
     const settings = readSettings();
 
@@ -215,9 +265,7 @@ async function saveSettings() {
         return;
     }
 
-    if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem("token");
-        window.location.href = "index.html";
+    if (await handleAuthFailure(response)) {
         return;
     }
 
@@ -282,9 +330,7 @@ async function hydrateSettings() {
     const response = await apiFetch("/api/auth/me", { method: "GET" });
     if (!response) return;
 
-    if (response.status === 401 || response.status === 403) {
-        localStorage.removeItem("token");
-        window.location.href = "index.html";
+    if (await handleAuthFailure(response)) {
         return;
     }
 
@@ -306,7 +352,148 @@ async function hydrateSettings() {
     applySettings(user.settings, user);
 }
 
+async function sendPasswordReset() {
+    const user = getCurrentUser();
+    if (!user.email) {
+        showToast("No email is available on your account yet.", "error", "Cannot reset password");
+        return;
+    }
+
+    const response = await apiFetch("/api/auth/forgot-password", {
+        method: "POST",
+        body: JSON.stringify({ email: user.email })
+    });
+
+    if (!response) {
+        showToast("The backend is unavailable right now.", "error", "Reset unavailable");
+        return;
+    }
+
+    if (await handleAuthFailure(response)) {
+        return;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+        showToast(data.error || "Could not send the reset email.", "error", "Reset unavailable");
+        return;
+    }
+
+    if (passwordResetStatus) {
+        passwordResetStatus.textContent = formatDeliveryHint(data, "A reset code has been sent to your email.");
+    }
+
+    showToast(data.message || "Password reset code sent.", "success", "Check your email");
+}
+
+async function requestEmailChange() {
+    const newEmail = newEmailInput?.value.trim().toLowerCase() || "";
+    const password = emailChangePasswordInput?.value || "";
+
+    const response = await apiFetch("/api/auth/change-email/request", {
+        method: "POST",
+        body: JSON.stringify({ newEmail, password })
+    });
+
+    if (!response) {
+        showToast("The backend is unavailable right now.", "error", "Email update unavailable");
+        return;
+    }
+
+    if (await handleAuthFailure(response)) {
+        return;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+        showToast(data.error || "Could not send the email change code.", "error", "Email update failed");
+        return;
+    }
+
+    if (emailChangeHint) {
+        emailChangeHint.textContent = formatDeliveryHint(data, "A confirmation code has been sent to your new email address.");
+    }
+
+    resendEmailChangeButton?.classList.remove("hidden");
+    showToast(data.message || "Confirmation code sent.", "success", "Check your email");
+}
+
+async function resendEmailChange() {
+    const response = await apiFetch("/api/auth/change-email/resend", {
+        method: "POST",
+        body: JSON.stringify({})
+    });
+
+    if (!response) {
+        showToast("The backend is unavailable right now.", "error", "Email update unavailable");
+        return;
+    }
+
+    if (await handleAuthFailure(response)) {
+        return;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+        showToast(data.error || "Could not resend the email change code.", "error", "Resend failed");
+        return;
+    }
+
+    if (emailChangeHint) {
+        emailChangeHint.textContent = formatDeliveryHint(data, "A fresh confirmation code has been sent to your new email address.");
+    }
+
+    showToast(data.message || "Confirmation code resent.", "success", "Check your email");
+}
+
+async function confirmEmailChange() {
+    const code = emailChangeCodeInput?.value.trim() || "";
+    const response = await apiFetch("/api/auth/change-email/confirm", {
+        method: "POST",
+        body: JSON.stringify({ code })
+    });
+
+    if (!response) {
+        showToast("The backend is unavailable right now.", "error", "Email update unavailable");
+        return;
+    }
+
+    if (await handleAuthFailure(response)) {
+        return;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+        showToast(data.error || "Could not confirm the new email.", "error", "Confirmation failed");
+        return;
+    }
+
+    if (data?.user) {
+        const nextUser = {
+            ...data.user,
+            settings: data.user.settings || {}
+        };
+        storeUser(nextUser);
+        localStorage.setItem("royalmindSettings", JSON.stringify({
+            displayName: nextUser.displayName,
+            ...nextUser.settings
+        }));
+        applySettings(nextUser.settings, nextUser);
+    }
+
+    setEmailChangePanelOpen(false);
+    showToast(data.message || "Email updated successfully.", "success", "Email updated");
+}
+
 saveButton?.addEventListener("click", saveSettings);
+sendPasswordResetButton?.addEventListener("click", sendPasswordReset);
+toggleEmailChangeButton?.addEventListener("click", () => {
+    setEmailChangePanelOpen(emailChangePanel?.classList.contains("hidden"));
+});
+requestEmailChangeButton?.addEventListener("click", requestEmailChange);
+resendEmailChangeButton?.addEventListener("click", resendEmailChange);
+confirmEmailChangeButton?.addEventListener("click", confirmEmailChange);
+cancelEmailChangeButton?.addEventListener("click", () => setEmailChangePanelOpen(false));
 
 applySettings(getStoredSettings(), parseStoredUser());
 bindMenuHighlight();

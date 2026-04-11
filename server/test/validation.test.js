@@ -2,6 +2,10 @@ const assert = require("node:assert/strict");
 
 const { getJwtSecret } = require("../utils/jwt");
 const {
+    validateEmailChangeConfirmPayload,
+    validateEmailChangeRequestPayload,
+    validatePasswordResetConfirmPayload,
+    validatePasswordResetRequestPayload,
     sanitizeSettings,
     validateGameStartPayload,
     validateGameUpdatePayload,
@@ -106,6 +110,49 @@ runTest("validateLoginPayload rejects malformed login data", () => {
     assert.deepEqual(validateLoginPayload({ email: "not-an-email", password: "secret123" }), {
         ok: false,
         error: "Invalid email format"
+    });
+});
+
+runTest("password reset payload validators accept good data and reject bad data", () => {
+    assert.deepEqual(validatePasswordResetRequestPayload({ email: " Player@Example.com " }), {
+        ok: true,
+        value: { email: "player@example.com" }
+    });
+
+    assert.deepEqual(validatePasswordResetConfirmPayload({
+        email: "player@example.com",
+        code: "12345",
+        newPassword: "password123"
+    }), {
+        ok: false,
+        error: "Please enter the 6-digit verification code"
+    });
+
+    assert.deepEqual(validatePasswordResetConfirmPayload({
+        email: "player@example.com",
+        code: "123456",
+        newPassword: "short"
+    }), {
+        ok: false,
+        error: "Password must be at least 8 characters long"
+    });
+});
+
+runTest("email change validators normalize email and require current password", () => {
+    assert.deepEqual(validateEmailChangeRequestPayload({
+        newEmail: " New@Example.com ",
+        password: "password123"
+    }), {
+        ok: true,
+        value: {
+            newEmail: "new@example.com",
+            password: "password123"
+        }
+    });
+
+    assert.deepEqual(validateEmailChangeConfirmPayload({ code: "12345" }), {
+        ok: false,
+        error: "Please enter the 6-digit verification code"
     });
 });
 

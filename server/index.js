@@ -2,7 +2,7 @@ const express = require("express");
 const path = require("path");
 const cors = require("cors");
 
-require("dotenv").config({ path: path.join(__dirname, ".env"), override: true });
+require("dotenv").config({ path: path.join(__dirname, ".env") });
 
 const authenticateToken = require("./middleware/authMiddleware");
 const { getJwtSecret } = require("./utils/jwt");
@@ -11,11 +11,14 @@ const gameRoutes = require("./routes/gameRoutes");
 const subscriptionRoutes = require("./routes/subscriptionRoutes");
 const premiumContentRoutes = require("./routes/premiumContentRoutes");
 const pool = require("./db");
+const { cleanupExpiredAuthState, ensureAuthSchema } = require("./utils/authStore");
+const { pruneRateLimitBuckets } = require("./utils/authSecurity");
 
 const app = express();
 
+app.disable("x-powered-by");
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/auth", authRoutes);
 app.use("/api/games", gameRoutes);
@@ -27,6 +30,15 @@ getJwtSecret();
 pool.query("SELECT 1")
     .then(() => console.log("Database connection OK"))
     .catch((err) => console.error("Database connection error:", err.message));
+
+ensureAuthSchema()
+    .then(() => cleanupExpiredAuthState())
+    .catch((err) => console.error("Auth bootstrap error:", err.message));
+
+setInterval(() => {
+    pruneRateLimitBuckets();
+    cleanupExpiredAuthState().catch((err) => console.error("Scheduled auth cleanup error:", err.message));
+}, 15 * 60 * 1000).unref();
 
 app.get("/api/protected", authenticateToken, (req, res) => {
     res.json({

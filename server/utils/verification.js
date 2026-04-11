@@ -22,6 +22,22 @@ function getVerificationSecret() {
     return process.env.VERIFICATION_SECRET || getJwtSecret();
 }
 
+function isProductionEnvironment() {
+    return String(process.env.NODE_ENV || "").toLowerCase() === "production";
+}
+
+function canUseDevMailFallback() {
+    if (String(process.env.MAIL_FORCE_DEV || "").toLowerCase() === "true") {
+        return true;
+    }
+
+    return !isProductionEnvironment();
+}
+
+function shouldForceDevMail() {
+    return String(process.env.MAIL_FORCE_DEV || "").toLowerCase() === "true";
+}
+
 function generateVerificationCode() {
     return String(crypto.randomInt(0, 1000000)).padStart(6, "0");
 }
@@ -95,7 +111,20 @@ function getMailFromAddress() {
 }
 
 async function sendVerificationEmail({ email, displayName, code }) {
+    if (shouldForceDevMail()) {
+        return {
+            delivered: false,
+            mode: "dev"
+        };
+    }
+
     if (!isMailConfigured()) {
+        if (!canUseDevMailFallback()) {
+            const error = new Error("Email delivery is not configured on the server.");
+            error.code = "EMAIL_NOT_CONFIGURED";
+            throw error;
+        }
+
         return {
             delivered: false,
             mode: "dev"
@@ -106,27 +135,120 @@ async function sendVerificationEmail({ email, displayName, code }) {
     await transporter.sendMail({
         from: getMailFromAddress(),
         to: email,
-        subject: "RoyalMind verification code",
-        text: [
-            `Hello ${displayName || "Player"},`,
-            "",
-            `Your RoyalMind verification code is: ${code}`,
-            "",
-            "It expires in 10 minutes."
-        ].join("\n"),
-        html: `
-            <div style="font-family:Segoe UI,Arial,sans-serif;color:#132017;">
-                <p>Hello ${escapeHtml(displayName || "Player")},</p>
-                <p>Your RoyalMind verification code is:</p>
-                <p style="font-size:28px;font-weight:700;letter-spacing:6px;">${escapeHtml(code)}</p>
-                <p>It expires in 10 minutes.</p>
-            </div>
-        `
+        ...buildCodeEmail({
+            displayName,
+            code,
+            subject: "RoyalMind verification code",
+            intro: "Your RoyalMind verification code is:",
+            footer: "It expires in 10 minutes."
+        })
     });
 
     return {
         delivered: true,
         mode: "email"
+    };
+}
+
+async function sendPasswordResetEmail({ email, displayName, code }) {
+    if (shouldForceDevMail()) {
+        return {
+            delivered: false,
+            mode: "dev"
+        };
+    }
+
+    if (!isMailConfigured()) {
+        if (!canUseDevMailFallback()) {
+            const error = new Error("Email delivery is not configured on the server.");
+            error.code = "EMAIL_NOT_CONFIGURED";
+            throw error;
+        }
+
+        return {
+            delivered: false,
+            mode: "dev"
+        };
+    }
+
+    const transporter = getTransporter();
+    await transporter.sendMail({
+        from: getMailFromAddress(),
+        to: email,
+        ...buildCodeEmail({
+            displayName,
+            code,
+            subject: "RoyalMind password reset code",
+            intro: "Use this code to reset your RoyalMind password:",
+            footer: "If you did not request this, you can ignore this email."
+        })
+    });
+
+    return {
+        delivered: true,
+        mode: "email"
+    };
+}
+
+async function sendPendingEmailVerification({ email, displayName, code }) {
+    if (shouldForceDevMail()) {
+        return {
+            delivered: false,
+            mode: "dev"
+        };
+    }
+
+    if (!isMailConfigured()) {
+        if (!canUseDevMailFallback()) {
+            const error = new Error("Email delivery is not configured on the server.");
+            error.code = "EMAIL_NOT_CONFIGURED";
+            throw error;
+        }
+
+        return {
+            delivered: false,
+            mode: "dev"
+        };
+    }
+
+    const transporter = getTransporter();
+    await transporter.sendMail({
+        from: getMailFromAddress(),
+        to: email,
+        ...buildCodeEmail({
+            displayName,
+            code,
+            subject: "Confirm your new RoyalMind email",
+            intro: "Use this code to confirm your new RoyalMind email address:",
+            footer: "It expires in 10 minutes."
+        })
+    });
+
+    return {
+        delivered: true,
+        mode: "email"
+    };
+}
+
+function buildCodeEmail({ displayName, code, subject, intro, footer }) {
+    return {
+        subject,
+        text: [
+            `Hello ${displayName || "Player"},`,
+            "",
+            intro,
+            code,
+            "",
+            footer
+        ].join("\n"),
+        html: `
+            <div style="font-family:Segoe UI,Arial,sans-serif;color:#132017;">
+                <p>Hello ${escapeHtml(displayName || "Player")},</p>
+                <p>${escapeHtml(intro)}</p>
+                <p style="font-size:28px;font-weight:700;letter-spacing:6px;">${escapeHtml(code)}</p>
+                <p>${escapeHtml(footer)}</p>
+            </div>
+        `
     };
 }
 
@@ -143,5 +265,7 @@ module.exports = {
     generateVerificationCode,
     hashVerificationCode,
     isMailConfigured,
+    sendPasswordResetEmail,
+    sendPendingEmailVerification,
     sendVerificationEmail
 };

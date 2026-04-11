@@ -70,11 +70,19 @@
                         </svg>
                     </button>
                 </div>
+                <button type="button" id="forgotPasswordBtn" class="mode-toggle auth-inline-link">Forgot password?</button>
                 <input type="password" id="confirmPassword" class="register-fields hidden" placeholder="Confirm password" />
                 <div id="verificationFields" class="register-fields hidden">
                     <input type="text" id="verificationCode" placeholder="Verification code" inputmode="numeric" autocomplete="one-time-code" />
                     <p id="verificationHint" class="verification-hint">We will send a 6-digit verification code to your email before creating the account.</p>
                     <button type="button" id="resendVerificationBtn" class="mode-toggle verification-resend hidden">Resend code</button>
+                </div>
+                <div id="resetPasswordFields" class="register-fields hidden">
+                    <input type="text" id="resetCode" placeholder="Reset code" inputmode="numeric" autocomplete="one-time-code" />
+                    <input type="password" id="newPassword" placeholder="New password" />
+                    <input type="password" id="confirmNewPassword" placeholder="Confirm new password" />
+                    <p id="resetHint" class="verification-hint">We will send a 6-digit reset code to your email.</p>
+                    <button type="button" id="resendResetBtn" class="mode-toggle verification-resend hidden">Resend reset code</button>
                 </div>
                 <button type="submit" id="submitButton">Log In</button>
             </form>

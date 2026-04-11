@@ -2,6 +2,7 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PHONE_REGEX = /^[+]?[0-9()\-\s]{7,20}$/;
 const PIECE_REGEX = /^[wb][prnbqk]$/;
 const NEPAL_MOBILE_REGEX = /^9[78]\d{8}$/;
+const VERIFICATION_CODE_REGEX = /^\d{6}$/;
 
 const SETTINGS_SPEC = {
     language: ["English", "Spanish", "French"],
@@ -45,6 +46,10 @@ function normalizeOptionalString(value, maxLength) {
     return maxLength ? normalized.slice(0, maxLength) : normalized;
 }
 
+function normalizeEmail(value) {
+    return normalizeRequiredString(value).toLowerCase();
+}
+
 function normalizeNepalPhone(value) {
     const raw = String(value || "").trim();
     if (!raw) return "";
@@ -71,7 +76,7 @@ function validateRegisterPayload(input) {
     const username = normalizeRequiredString(input?.username);
     const phone = normalizeRequiredString(input?.phone);
     const country = normalizeRequiredString(input?.country) || "Nepal";
-    const email = normalizeRequiredString(input?.email).toLowerCase();
+    const email = normalizeEmail(input?.email);
     const password = String(input?.password || "");
 
     if (!firstName || !lastName || !username || !phone || !country || !email || !password) {
@@ -117,7 +122,7 @@ function validateRegisterPayload(input) {
 }
 
 function validateLoginPayload(input) {
-    const email = normalizeRequiredString(input?.email).toLowerCase();
+    const email = normalizeEmail(input?.email);
     const password = String(input?.password || "");
 
     if (!email || !password) {
@@ -133,6 +138,93 @@ function validateLoginPayload(input) {
         value: {
             email,
             password
+        }
+    };
+}
+
+function validateVerificationCode(value) {
+    const code = normalizeRequiredString(value);
+    if (!VERIFICATION_CODE_REGEX.test(code)) {
+        return { ok: false, error: "Please enter the 6-digit verification code" };
+    }
+
+    return { ok: true, value: code };
+}
+
+function validatePasswordResetRequestPayload(input) {
+    const email = normalizeEmail(input?.email);
+
+    if (!email) {
+        return { ok: false, error: "Email is required" };
+    }
+
+    if (!EMAIL_REGEX.test(email)) {
+        return { ok: false, error: "Invalid email format" };
+    }
+
+    return {
+        ok: true,
+        value: { email }
+    };
+}
+
+function validatePasswordResetConfirmPayload(input) {
+    const emailResult = validatePasswordResetRequestPayload(input);
+    if (!emailResult.ok) {
+        return emailResult;
+    }
+
+    const codeResult = validateVerificationCode(input?.code);
+    if (!codeResult.ok) {
+        return codeResult;
+    }
+
+    const newPassword = String(input?.newPassword || "");
+    if (newPassword.length < 8) {
+        return { ok: false, error: "Password must be at least 8 characters long" };
+    }
+
+    return {
+        ok: true,
+        value: {
+            email: emailResult.value.email,
+            code: codeResult.value,
+            newPassword
+        }
+    };
+}
+
+function validateEmailChangeRequestPayload(input) {
+    const newEmail = normalizeEmail(input?.newEmail);
+    const password = String(input?.password || "");
+
+    if (!newEmail || !password) {
+        return { ok: false, error: "New email and current password are required" };
+    }
+
+    if (!EMAIL_REGEX.test(newEmail)) {
+        return { ok: false, error: "Invalid email format" };
+    }
+
+    return {
+        ok: true,
+        value: {
+            newEmail,
+            password
+        }
+    };
+}
+
+function validateEmailChangeConfirmPayload(input) {
+    const codeResult = validateVerificationCode(input?.code);
+    if (!codeResult.ok) {
+        return codeResult;
+    }
+
+    return {
+        ok: true,
+        value: {
+            code: codeResult.value
         }
     };
 }
@@ -346,12 +438,18 @@ module.exports = {
     EMAIL_REGEX,
     PHONE_REGEX,
     SETTINGS_KEYS,
+    normalizeEmail,
     sanitizeSettings,
     normalizeNepalPhone,
+    validateEmailChangeConfirmPayload,
+    validateEmailChangeRequestPayload,
     validateGameSavePayload,
     validateGameStartPayload,
     validateGameUpdatePayload,
     validateLoginPayload,
+    validatePasswordResetConfirmPayload,
+    validatePasswordResetRequestPayload,
     validateRegisterPayload,
-    validateSettingsPayload
+    validateSettingsPayload,
+    validateVerificationCode
 };
