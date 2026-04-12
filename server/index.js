@@ -2,7 +2,8 @@ const express = require("express");
 const path = require("path");
 const cors = require("cors");
 
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+const shouldOverrideEnv = String(process.env.NODE_ENV || "").toLowerCase() !== "production";
+require("dotenv").config({ path: path.join(__dirname, ".env"), override: shouldOverrideEnv });
 
 const authenticateToken = require("./middleware/authMiddleware");
 const { getJwtSecret } = require("./utils/jwt");

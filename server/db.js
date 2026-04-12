@@ -1,7 +1,8 @@
 const { Pool } = require("pg");
 const path = require("path");
 
-require("dotenv").config({ path: path.join(__dirname, ".env") });
+const shouldOverrideEnv = String(process.env.NODE_ENV || "").toLowerCase() !== "production";
+require("dotenv").config({ path: path.join(__dirname, ".env"), override: shouldOverrideEnv });
 
 const pool = new Pool({
     host: process.env.DB_HOST,
