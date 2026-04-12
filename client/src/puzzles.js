@@ -69,6 +69,17 @@ function redirectToLogin(message) {
     }, 700);
 }
 
+function redirectToSubscription(message) {
+    appUi.notify(message || "Premium access is required to open puzzles.", {
+        title: "Subscription required",
+        tone: "info",
+        duration: 1800
+    });
+    setTimeout(() => {
+        window.location.href = "subscription.html";
+    }, 800);
+}
+
 function getStoredSettings() {
     try {
         return JSON.parse(localStorage.getItem("royalmindSettings")) || {};
@@ -210,6 +221,33 @@ async function apiFetch(path, options = {}) {
     }
 
     return null;
+}
+
+async function ensurePremiumAccess() {
+    const response = await apiFetch("/api/subscription/me");
+    if (!response) {
+        setPuzzleMessage("Unable to verify premium access right now.", "warning");
+        return false;
+    }
+
+    if (response.status === 401) {
+        redirectToLogin("Your session expired. Please log in again.");
+        return false;
+    }
+
+    if (!response.ok) {
+        setPuzzleMessage("Unable to verify premium access right now.", "warning");
+        return false;
+    }
+
+    const data = await response.json();
+    if (!data.subscription?.isPremium) {
+        redirectToSubscription("Subscribe to unlock the puzzle trainer.");
+        return false;
+    }
+
+    premiumUnlocked = true;
+    return true;
 }
 
 function parseFenBoard(fen) {
@@ -986,8 +1024,13 @@ async function submitAttempt(moveUci, moveMeta) {
     }
 
     const data = await response.json();
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
         redirectToLogin("Your session expired. Please log in again.");
+        return;
+    }
+
+    if (response.status === 403) {
+        redirectToSubscription(data.error || "Subscribe to solve premium puzzles.");
         return;
     }
 
@@ -1053,20 +1096,7 @@ async function openPuzzle(id) {
     }
 
     if (response.status === 403) {
-        currentPuzzle = data.puzzle || { locked: true, title: "Premium Puzzle" };
-        renderPuzzleList(puzzleCatalog);
-        puzzlePosition = null;
-        if (puzzleTitle) puzzleTitle.textContent = currentPuzzle.title || "Premium Puzzle";
-        if (puzzleDescription) {
-            puzzleDescription.textContent = currentPuzzle.description || "Unlock premium to solve this puzzle.";
-        }
-        if (puzzleMeta) puzzleMeta.innerHTML = "";
-        if (puzzleSourceRow) puzzleSourceRow.classList.add("hidden");
-        if (puzzleBoardWrap) puzzleBoardWrap.classList.add("hidden");
-        if (lockedPuzzleCta) lockedPuzzleCta.classList.remove("hidden");
-        if (showSolutionBtn) showSolutionBtn.classList.add("hidden");
-        if (puzzleSolution) puzzleSolution.classList.add("hidden");
-        clearPuzzleMessage();
+        redirectToSubscription(data.error || "Subscribe to unlock the puzzle trainer.");
         return;
     }
 
@@ -1113,6 +1143,9 @@ async function openPuzzle(id) {
 async function initPuzzles() {
     applyAppearanceSettings();
 
+    const hasPremiumAccess = await ensurePremiumAccess();
+    if (!hasPremiumAccess) return;
+
     const response = await apiFetch("/api/premium/puzzles");
     if (!response) {
         if (puzzleList) {
@@ -1121,8 +1154,14 @@ async function initPuzzles() {
         return;
     }
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
         redirectToLogin("Your session expired. Please log in again.");
+        return;
+    }
+
+    if (response.status === 403) {
+        const data = await response.json().catch(() => ({}));
+        redirectToSubscription(data.error || "Subscribe to unlock the puzzle trainer.");
         return;
     }
 
@@ -1138,9 +1177,7 @@ async function initPuzzles() {
     puzzleCatalog = Array.isArray(data.puzzles) ? data.puzzles : [];
 
     if (puzzleMembershipNote) {
-        puzzleMembershipNote.textContent = premiumUnlocked
-            ? "Premium puzzles are unlocked for your account."
-            : "You can solve the free puzzle now and unlock premium challenges from the subscription page.";
+        puzzleMembershipNote.textContent = "Premium puzzles are unlocked for your account.";
     }
 
     renderPuzzleList(puzzleCatalog);

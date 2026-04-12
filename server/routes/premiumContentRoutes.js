@@ -8,6 +8,11 @@ const {
 
 const router = express.Router();
 
+function isPreviewRequest(req) {
+    const value = String(req.query?.preview || "").trim().toLowerCase();
+    return value === "1" || value === "true";
+}
+
 function parseSolutionMoves(value) {
     if (Array.isArray(value)) return value;
     if (typeof value === "string") {
@@ -66,11 +71,38 @@ function mapVideoRow(row, isPremiumUser) {
     };
 }
 
+function mapPreviewPuzzleRow(row) {
+    return {
+        ...mapPuzzleRow(row, false, false),
+        locked: true,
+        fen: null,
+        gameUrl: null,
+        solutionMoves: []
+    };
+}
+
+function mapPreviewVideoRow(row) {
+    return {
+        ...mapVideoRow(row, false),
+        locked: true,
+        youtubeUrl: null,
+        youtubeVideoId: null
+    };
+}
+
 router.get("/puzzles", authenticateToken, async (req, res) => {
     try {
         await ensurePremiumSchema(pool);
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
+        const previewMode = isPreviewRequest(req);
+
+        if (!isPremiumUser && !previewMode) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
 
         const result = await pool.query(
             `WITH imported AS (
@@ -110,7 +142,12 @@ router.get("/puzzles", authenticateToken, async (req, res) => {
 
         res.json({
             isPremium: isPremiumUser,
-            puzzles: result.rows.map((row) => mapPuzzleRow(row, isPremiumUser, false))
+            previewMode: previewMode && !isPremiumUser,
+            puzzles: result.rows.map((row) => (
+                !isPremiumUser && previewMode
+                    ? mapPreviewPuzzleRow(row)
+                    : mapPuzzleRow(row, isPremiumUser, false)
+            ))
         });
     } catch (error) {
         console.error(error.message);
@@ -128,6 +165,13 @@ router.get("/puzzles/:id", authenticateToken, async (req, res) => {
         await ensurePremiumSchema(pool);
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
+
+        if (!isPremiumUser) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
 
         const result = await pool.query(
             `WITH attempts AS (
@@ -158,13 +202,6 @@ router.get("/puzzles/:id", authenticateToken, async (req, res) => {
         }
 
         const puzzle = result.rows[0];
-        if (puzzle.is_premium && !isPremiumUser) {
-            return res.status(403).json({
-                error: "Premium access required",
-                puzzle: mapPuzzleRow(puzzle, false, false)
-            });
-        }
-
         res.json({ puzzle: mapPuzzleRow(puzzle, isPremiumUser, true) });
     } catch (error) {
         console.error(error.message);
@@ -188,6 +225,13 @@ router.post("/puzzles/:id/attempt", authenticateToken, async (req, res) => {
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
 
+        if (!isPremiumUser) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
+
         const result = await pool.query(
             `SELECT * FROM puzzles WHERE id = $1 LIMIT 1`,
             [puzzleId]
@@ -198,10 +242,6 @@ router.post("/puzzles/:id/attempt", authenticateToken, async (req, res) => {
         }
 
         const puzzle = result.rows[0];
-        if (puzzle.is_premium && !isPremiumUser) {
-            return res.status(403).json({ error: "Premium access required" });
-        }
-
         const solutionMoves = parseSolutionMoves(puzzle.solution_moves);
         const expectedMove = String(solutionMoves[0] || "").toLowerCase();
         const correct = attemptedMove === expectedMove;
@@ -248,6 +288,14 @@ router.get("/videos", authenticateToken, async (req, res) => {
         await ensurePremiumSchema(pool);
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
+        const previewMode = isPreviewRequest(req);
+
+        if (!isPremiumUser && !previewMode) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
 
         const result = await pool.query(
             `SELECT v.*,
@@ -264,7 +312,12 @@ router.get("/videos", authenticateToken, async (req, res) => {
 
         res.json({
             isPremium: isPremiumUser,
-            lessons: result.rows.map((row) => mapVideoRow(row, isPremiumUser))
+            previewMode: previewMode && !isPremiumUser,
+            lessons: result.rows.map((row) => (
+                !isPremiumUser && previewMode
+                    ? mapPreviewVideoRow(row)
+                    : mapVideoRow(row, isPremiumUser)
+            ))
         });
     } catch (error) {
         console.error(error.message);
@@ -283,6 +336,13 @@ router.post("/videos/:id/open", authenticateToken, async (req, res) => {
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
 
+        if (!isPremiumUser) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
+
         const lessonResult = await pool.query(
             `SELECT * FROM video_lessons WHERE id = $1 LIMIT 1`,
             [lessonId]
@@ -293,10 +353,6 @@ router.post("/videos/:id/open", authenticateToken, async (req, res) => {
         }
 
         const lesson = lessonResult.rows[0];
-        if (lesson.is_premium && !isPremiumUser) {
-            return res.status(403).json({ error: "Premium access required" });
-        }
-
         const progress = await pool.query(
             `INSERT INTO video_progress (user_id, lesson_id, opened_count, completed, last_opened_at, created_at, updated_at)
              VALUES ($1, $2, 1, FALSE, NOW(), NOW(), NOW())

@@ -2,7 +2,9 @@ const DEFAULT_PLANS = [
     {
         code: "premium-monthly",
         name: "Premium",
-        price_label: "$4.99 / month",
+        price_label: "NPR 499 / month",
+        price_amount: 499,
+        currency: "NPR",
         billing_period: "monthly",
         is_active: true,
         description: "Unlock premium puzzles and curated YouTube lesson collections."
@@ -156,6 +158,8 @@ async function ensurePremiumSchema(pool) {
             code VARCHAR(60) UNIQUE NOT NULL,
             name VARCHAR(80) NOT NULL,
             price_label VARCHAR(80) NOT NULL,
+            price_amount NUMERIC(10,2) DEFAULT 0,
+            currency VARCHAR(12) DEFAULT 'NPR',
             billing_period VARCHAR(40) NOT NULL,
             description TEXT,
             is_active BOOLEAN DEFAULT TRUE,
@@ -172,6 +176,39 @@ async function ensurePremiumSchema(pool) {
             provider VARCHAR(40) NOT NULL DEFAULT 'manual',
             provider_ref VARCHAR(120),
             started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    await pool.query(`
+        ALTER TABLE subscription_plans
+        ADD COLUMN IF NOT EXISTS price_amount NUMERIC(10,2) DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS currency VARCHAR(12) DEFAULT 'NPR'
+    `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS subscription_payments (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL,
+            plan_id INTEGER NOT NULL REFERENCES subscription_plans(id) ON DELETE CASCADE,
+            provider VARCHAR(40) NOT NULL DEFAULT 'esewa',
+            transaction_uuid VARCHAR(120) UNIQUE NOT NULL,
+            provider_ref VARCHAR(120),
+            transaction_code VARCHAR(120),
+            status VARCHAR(40) NOT NULL DEFAULT 'pending',
+            amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+            tax_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+            service_charge NUMERIC(10,2) NOT NULL DEFAULT 0,
+            delivery_charge NUMERIC(10,2) NOT NULL DEFAULT 0,
+            total_amount NUMERIC(10,2) NOT NULL DEFAULT 0,
+            product_code VARCHAR(80) NOT NULL,
+            success_payload JSONB DEFAULT '{}'::jsonb,
+            failure_payload JSONB DEFAULT '{}'::jsonb,
+            verified_payload JSONB DEFAULT '{}'::jsonb,
+            paid_at TIMESTAMP,
+            verification_checked_at TIMESTAMP,
             expires_at TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -256,6 +293,8 @@ async function ensurePremiumSchema(pool) {
     `);
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_user_subscriptions_user_id ON user_subscriptions(user_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscription_payments_user_status ON subscription_payments(user_id, status, created_at DESC)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_subscription_payments_transaction_uuid ON subscription_payments(transaction_uuid)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_puzzles_premium ON puzzles(is_premium)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_video_lessons_premium ON video_lessons(is_premium)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_puzzle_attempts_user_puzzle ON puzzle_attempts(user_id, puzzle_id, attempted_at DESC)`);
@@ -263,15 +302,17 @@ async function ensurePremiumSchema(pool) {
 
     for (const plan of DEFAULT_PLANS) {
         await pool.query(
-            `INSERT INTO subscription_plans (code, name, price_label, billing_period, description, is_active)
-             VALUES ($1, $2, $3, $4, $5, $6)
+            `INSERT INTO subscription_plans (code, name, price_label, price_amount, currency, billing_period, description, is_active)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              ON CONFLICT (code) DO UPDATE
              SET name = EXCLUDED.name,
                  price_label = EXCLUDED.price_label,
+                 price_amount = EXCLUDED.price_amount,
+                 currency = EXCLUDED.currency,
                  billing_period = EXCLUDED.billing_period,
                  description = EXCLUDED.description,
                  is_active = EXCLUDED.is_active`,
-            [plan.code, plan.name, plan.price_label, plan.billing_period, plan.description, plan.is_active]
+            [plan.code, plan.name, plan.price_label, plan.price_amount, plan.currency, plan.billing_period, plan.description, plan.is_active]
         );
     }
 

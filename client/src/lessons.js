@@ -31,6 +31,17 @@ function redirectToLogin(message) {
     }, 700);
 }
 
+function redirectToSubscription(message) {
+    appUi.notify(message || "Premium access is required to open lessons.", {
+        title: "Subscription required",
+        tone: "info",
+        duration: 1800
+    });
+    setTimeout(() => {
+        window.location.href = "subscription.html";
+    }, 800);
+}
+
 function getLocalePreferences() {
     try {
         const settings = JSON.parse(localStorage.getItem("royalmindSettings")) || {};
@@ -103,11 +114,41 @@ async function apiFetch(path, options = {}) {
     return null;
 }
 
+async function ensurePremiumAccess() {
+    const response = await apiFetch("/api/subscription/me");
+    if (!response) {
+        if (lessonGrid) {
+            lessonGrid.innerHTML = '<article class="premium-card"><p class="premium-muted">Unable to verify premium access right now.</p></article>';
+        }
+        return false;
+    }
+
+    if (response.status === 401) {
+        redirectToLogin("Your session expired. Please log in again.");
+        return false;
+    }
+
+    if (!response.ok) {
+        if (lessonGrid) {
+            lessonGrid.innerHTML = '<article class="premium-card"><p class="premium-muted">Unable to verify premium access right now.</p></article>';
+        }
+        return false;
+    }
+
+    const data = await response.json();
+    if (!data.subscription?.isPremium) {
+        redirectToSubscription("Subscribe to unlock the lesson library.");
+        return false;
+    }
+
+    return true;
+}
+
 function renderLessons(lessons, isPremium) {
     if (lessonMembershipNote) {
         lessonMembershipNote.textContent = isPremium
             ? "Premium lesson collections are unlocked."
-            : "Free users can preview the free lesson collection. Premium lessons are locked.";
+            : "Premium lesson collections require an active subscription.";
     }
 
     if (!lessonGrid) return;
@@ -173,8 +214,13 @@ async function trackLessonOpen(lessonId) {
     });
 
     if (!response) return null;
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
         redirectToLogin("Your session expired. Please log in again.");
+        return null;
+    }
+    if (response.status === 403) {
+        const data = await response.json().catch(() => ({}));
+        redirectToSubscription(data.error || "Subscribe to unlock the lesson library.");
         return null;
     }
     if (!response.ok) return null;
@@ -184,6 +230,9 @@ async function trackLessonOpen(lessonId) {
 }
 
 async function initLessons() {
+    const hasPremiumAccess = await ensurePremiumAccess();
+    if (!hasPremiumAccess) return;
+
     const response = await apiFetch("/api/premium/videos");
     if (!response) {
         if (lessonGrid) {
@@ -192,8 +241,14 @@ async function initLessons() {
         return;
     }
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
         redirectToLogin("Your session expired. Please log in again.");
+        return;
+    }
+
+    if (response.status === 403) {
+        const data = await response.json().catch(() => ({}));
+        redirectToSubscription(data.error || "Subscribe to unlock the lesson library.");
         return;
     }
 
