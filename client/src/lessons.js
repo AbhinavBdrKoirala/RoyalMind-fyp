@@ -230,8 +230,9 @@ async function trackLessonOpen(lessonId) {
 }
 
 async function initLessons() {
-    const hasPremiumAccess = await ensurePremiumAccess();
-    if (!hasPremiumAccess) return;
+    // No premium gate here — free lessons are accessible to all logged-in users.
+    // The backend returns locked:true for premium lessons if !isPremiumUser,
+    // so non-premium users see free lessons as openable and premium ones as locked cards.
 
     const response = await apiFetch("/api/premium/videos");
     if (!response) {
@@ -243,12 +244,6 @@ async function initLessons() {
 
     if (response.status === 401) {
         redirectToLogin("Your session expired. Please log in again.");
-        return;
-    }
-
-    if (response.status === 403) {
-        const data = await response.json().catch(() => ({}));
-        redirectToSubscription(data.error || "Subscribe to unlock the lesson library.");
         return;
     }
 

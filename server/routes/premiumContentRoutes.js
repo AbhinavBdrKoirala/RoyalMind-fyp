@@ -95,14 +95,9 @@ router.get("/puzzles", authenticateToken, async (req, res) => {
         await ensurePremiumSchema(pool);
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
-        const previewMode = isPreviewRequest(req);
 
-        if (!isPremiumUser && !previewMode) {
-            return res.status(403).json({
-                error: "Premium access required",
-                redirectTo: "subscription.html"
-            });
-        }
+        // Free puzzles are visible to all authenticated users.
+        // mapPuzzleRow handles per-row locking: locked = is_premium && !isPremiumUser
 
         const result = await pool.query(
             `WITH imported AS (
@@ -142,12 +137,7 @@ router.get("/puzzles", authenticateToken, async (req, res) => {
 
         res.json({
             isPremium: isPremiumUser,
-            previewMode: previewMode && !isPremiumUser,
-            puzzles: result.rows.map((row) => (
-                !isPremiumUser && previewMode
-                    ? mapPreviewPuzzleRow(row)
-                    : mapPuzzleRow(row, isPremiumUser, false)
-            ))
+            puzzles: result.rows.map((row) => mapPuzzleRow(row, isPremiumUser, false))
         });
     } catch (error) {
         console.error(error.message);
@@ -166,13 +156,7 @@ router.get("/puzzles/:id", authenticateToken, async (req, res) => {
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
 
-        if (!isPremiumUser) {
-            return res.status(403).json({
-                error: "Premium access required",
-                redirectTo: "subscription.html"
-            });
-        }
-
+        // Fetch the puzzle first so we know whether it's free or premium.
         const result = await pool.query(
             `WITH attempts AS (
                 SELECT
@@ -202,6 +186,16 @@ router.get("/puzzles/:id", authenticateToken, async (req, res) => {
         }
 
         const puzzle = result.rows[0];
+
+        // Only block access if this specific puzzle is premium and user is not subscribed.
+        // Free puzzles (is_premium = false) are accessible to all authenticated users.
+        if (puzzle.is_premium && !isPremiumUser) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
+
         res.json({ puzzle: mapPuzzleRow(puzzle, isPremiumUser, true) });
     } catch (error) {
         console.error(error.message);
@@ -225,13 +219,7 @@ router.post("/puzzles/:id/attempt", authenticateToken, async (req, res) => {
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
 
-        if (!isPremiumUser) {
-            return res.status(403).json({
-                error: "Premium access required",
-                redirectTo: "subscription.html"
-            });
-        }
-
+        // Fetch the puzzle first to check whether it's free or premium.
         const result = await pool.query(
             `SELECT * FROM puzzles WHERE id = $1 LIMIT 1`,
             [puzzleId]
@@ -242,6 +230,15 @@ router.post("/puzzles/:id/attempt", authenticateToken, async (req, res) => {
         }
 
         const puzzle = result.rows[0];
+
+        // Only block if this specific puzzle is premium and user is not subscribed.
+        if (puzzle.is_premium && !isPremiumUser) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
+
         const solutionMoves = parseSolutionMoves(puzzle.solution_moves);
         const expectedMove = String(solutionMoves[0] || "").toLowerCase();
         const correct = attemptedMove === expectedMove;
@@ -288,14 +285,9 @@ router.get("/videos", authenticateToken, async (req, res) => {
         await ensurePremiumSchema(pool);
         const subscription = await getActiveSubscription(pool, req.user.id);
         const isPremiumUser = Boolean(subscription);
-        const previewMode = isPreviewRequest(req);
 
-        if (!isPremiumUser && !previewMode) {
-            return res.status(403).json({
-                error: "Premium access required",
-                redirectTo: "subscription.html"
-            });
-        }
+        // Free lessons are visible to all authenticated users.
+        // mapVideoRow handles per-row locking: locked = is_premium && !isPremiumUser
 
         const result = await pool.query(
             `SELECT v.*,
@@ -312,12 +304,7 @@ router.get("/videos", authenticateToken, async (req, res) => {
 
         res.json({
             isPremium: isPremiumUser,
-            previewMode: previewMode && !isPremiumUser,
-            lessons: result.rows.map((row) => (
-                !isPremiumUser && previewMode
-                    ? mapPreviewVideoRow(row)
-                    : mapVideoRow(row, isPremiumUser)
-            ))
+            lessons: result.rows.map((row) => mapVideoRow(row, isPremiumUser))
         });
     } catch (error) {
         console.error(error.message);

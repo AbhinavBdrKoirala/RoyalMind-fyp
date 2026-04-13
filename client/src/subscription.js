@@ -302,61 +302,68 @@ function renderStatus(subscription, pendingPayment, providerInfo = {}) {
     }
 
     if (secondaryButton) {
-        if (!isPremium) {
-            secondaryButton.classList.add("hidden");
-            secondaryButton.onclick = null;
-            return;
-        }
-
-        secondaryButton.classList.remove("hidden");
-        secondaryButton.onclick = async () => {
-            const confirmed = await appUi.confirm({
-                title: "Cancel premium access?",
-                message: "This will remove premium access from your account. It does not refund the payment automatically.",
-                confirmLabel: "Cancel premium",
-                cancelLabel: "Keep premium",
-                tone: "warning"
-            });
-            if (!confirmed) return;
-
-            setLoadingState("Updating...");
-            const response = await apiFetch("/api/subscription/me", { method: "DELETE" });
-            if (!response) {
-                appUi.notify("Unable to cancel premium right now.", {
-                    title: "Subscription error",
+        if (isPremium) {
+            // User is subscribed — show the full cancel flow
+            secondaryButton.classList.remove("hidden");
+            secondaryButton.textContent = "Cancel Premium";
+            secondaryButton.onclick = async () => {
+                const confirmed = await appUi.confirm({
+                    title: "Cancel premium access?",
+                    message: "This will remove premium access from your account. It does not refund the payment automatically.",
+                    confirmLabel: "Cancel premium",
+                    cancelLabel: "Keep premium",
                     tone: "warning"
                 });
-                await hydrateSubscription();
-                return;
-            }
+                if (!confirmed) return;
 
-            if (response.status === 401 || response.status === 403) {
-                redirectToLogin("Your session expired. Please log in again.");
-                return;
-            }
+                setLoadingState("Updating...");
+                const response = await apiFetch("/api/subscription/me", { method: "DELETE" });
+                if (!response) {
+                    appUi.notify("Unable to cancel premium right now.", {
+                        title: "Subscription error",
+                        tone: "warning"
+                    });
+                    await hydrateSubscription();
+                    return;
+                }
 
-            if (!response.ok) {
-                const data = await response.json().catch(() => ({}));
-                appUi.notify("Unable to cancel premium right now.", {
-                    title: "Subscription error",
-                    tone: "warning"
-                });
-                if (data.error) {
-                    if (statusText) {
+                if (response.status === 401 || response.status === 403) {
+                    redirectToLogin("Your session expired. Please log in again.");
+                    return;
+                }
+
+                if (!response.ok) {
+                    const data = await response.json().catch(() => ({}));
+                    appUi.notify("Unable to cancel premium right now.", {
+                        title: "Subscription error",
+                        tone: "warning"
+                    });
+                    if (data.error && statusText) {
                         statusText.textContent = data.error;
                     }
+                    await hydrateSubscription();
+                    return;
                 }
-                await hydrateSubscription();
-                return;
-            }
 
-            const data = await response.json().catch(() => ({}));
-            appUi.notify(data.message || "Premium access cancelled.", {
-                title: "Subscription updated",
-                tone: data.cancelled === false ? "info" : "success"
-            });
-            await hydrateSubscription();
-        };
+                const data = await response.json().catch(() => ({}));
+                appUi.notify(data.message || "Premium access cancelled.", {
+                    title: "Subscription updated",
+                    tone: data.cancelled === false ? "info" : "success"
+                });
+                await hydrateSubscription();
+            };
+        } else if (pendingPayment) {
+            // Payment is pending — let user navigate away or go to dashboard
+            secondaryButton.classList.remove("hidden");
+            secondaryButton.textContent = "Go to Dashboard";
+            secondaryButton.onclick = () => {
+                window.location.href = "dashboard.html";
+            };
+        } else {
+            // Free tier — hide secondary button
+            secondaryButton.classList.add("hidden");
+            secondaryButton.onclick = null;
+        }
     }
 }
 

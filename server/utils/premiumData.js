@@ -338,7 +338,7 @@ async function ensurePremiumSchema(pool) {
                 is_premium
              )
              VALUES (
-                $1, $2, $3, $4, 'seed', $4, NULL, $5::jsonb, $6, $7, NULL, NULL, NULL, NULL, NULL, NULL, $8
+                $1, $2, $3, $4, 'seed', NULL, NULL, $5::jsonb, $6, $7, NULL, NULL, NULL, NULL, NULL, NULL, $8
              )
              ON CONFLICT (slug) DO UPDATE
              SET title = EXCLUDED.title,

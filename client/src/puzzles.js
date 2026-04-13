@@ -1143,8 +1143,9 @@ async function openPuzzle(id) {
 async function initPuzzles() {
     applyAppearanceSettings();
 
-    const hasPremiumAccess = await ensurePremiumAccess();
-    if (!hasPremiumAccess) return;
+    // No premium gate here — free puzzles are accessible to all logged-in users.
+    // The backend returns locked:true for premium puzzles if !isPremiumUser,
+    // so non-premium users see free puzzles playable and premium ones as locked cards.
 
     const response = await apiFetch("/api/premium/puzzles");
     if (!response) {
@@ -1156,12 +1157,6 @@ async function initPuzzles() {
 
     if (response.status === 401) {
         redirectToLogin("Your session expired. Please log in again.");
-        return;
-    }
-
-    if (response.status === 403) {
-        const data = await response.json().catch(() => ({}));
-        redirectToSubscription(data.error || "Subscribe to unlock the puzzle trainer.");
         return;
     }
 
@@ -1177,7 +1172,9 @@ async function initPuzzles() {
     puzzleCatalog = Array.isArray(data.puzzles) ? data.puzzles : [];
 
     if (puzzleMembershipNote) {
-        puzzleMembershipNote.textContent = "Premium puzzles are unlocked for your account.";
+        puzzleMembershipNote.textContent = data.isPremium
+            ? "Premium puzzles are unlocked for your account."
+            : "Free puzzles are available. Subscribe to unlock all premium challenges.";
     }
 
     renderPuzzleList(puzzleCatalog);
