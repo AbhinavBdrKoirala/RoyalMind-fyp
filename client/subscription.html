@@ -52,7 +52,7 @@
             </article>
         </section>
 
-        <section class="premium-grid two-column">
+        <section class="premium-grid">
             <article class="premium-card">
                 <div class="premium-card-head">
                     <div>
@@ -72,19 +72,17 @@
                 </div>
                 <p class="premium-footnote">This version ships with curated database content, so you can use premium features immediately without needing an admin panel.</p>
             </article>
+        </section>
 
+        <section class="premium-grid">
             <article class="premium-card">
                 <div class="premium-card-head">
                     <div>
-                        <p class="premium-section-label">How It Works</p>
-                        <h2>No admin required</h2>
+                        <p class="premium-section-label">Billing History</p>
+                        <h2>Recent payment activity</h2>
                     </div>
                 </div>
-                <ul class="premium-feature-list">
-                    <li>Puzzles are stored as FEN positions plus solution moves in PostgreSQL.</li>
-                    <li>Lesson entries are stored as YouTube metadata and links, not video files.</li>
-                    <li>You can keep growing the subscription catalog directly from code or the database for now.</li>
-                </ul>
+                <div id="subscriptionHistoryList" class="premium-list"></div>
             </article>
         </section>
 

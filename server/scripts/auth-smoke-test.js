@@ -86,7 +86,7 @@ async function main() {
     });
 
     console.log("Logging in with new password...");
-    await post("/api/auth/login", {
+    const loginAfterReset = await post("/api/auth/login", {
         email: userOne.email,
         password: newPassword
     });
@@ -107,6 +107,22 @@ async function main() {
     await post("/api/auth/login", {
         email: nextEmail,
         password: newPassword
+    });
+
+    console.log("Testing logged-in password change...");
+    const authenticatedPasswordChange = await post("/api/auth/change-password/request", {}, loginAfterReset.token);
+    const authenticatedResetCode = requireDevCode(authenticatedPasswordChange, "/api/auth/change-password/request");
+    const finalPassword = "password789";
+
+    await post("/api/auth/change-password/confirm", {
+        code: authenticatedResetCode,
+        newPassword: finalPassword
+    }, loginAfterReset.token);
+
+    console.log("Logging in with the final password...");
+    await post("/api/auth/login", {
+        email: nextEmail,
+        password: finalPassword
     });
 
     console.log("Auth smoke test completed successfully.");

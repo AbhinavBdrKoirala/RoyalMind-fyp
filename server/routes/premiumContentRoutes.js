@@ -2,9 +2,11 @@ const express = require("express");
 const pool = require("../db");
 const authenticateToken = require("../middleware/authMiddleware");
 const {
-    ensurePremiumSchema,
-    getActiveSubscription
+    ensurePremiumSchema
 } = require("../utils/premiumData");
+const {
+    resolveUserSubscription
+} = require("../utils/subscriptionAccess");
 
 const router = express.Router();
 
@@ -93,7 +95,7 @@ function mapPreviewVideoRow(row) {
 router.get("/puzzles", authenticateToken, async (req, res) => {
     try {
         await ensurePremiumSchema(pool);
-        const subscription = await getActiveSubscription(pool, req.user.id);
+        const subscription = await resolveUserSubscription(pool, req.user.id, { refreshPending: true });
         const isPremiumUser = Boolean(subscription);
 
         // Free puzzles are visible to all authenticated users.
@@ -153,7 +155,7 @@ router.get("/puzzles/:id", authenticateToken, async (req, res) => {
 
     try {
         await ensurePremiumSchema(pool);
-        const subscription = await getActiveSubscription(pool, req.user.id);
+        const subscription = await resolveUserSubscription(pool, req.user.id, { refreshPending: true });
         const isPremiumUser = Boolean(subscription);
 
         // Fetch the puzzle first so we know whether it's free or premium.
@@ -216,7 +218,7 @@ router.post("/puzzles/:id/attempt", authenticateToken, async (req, res) => {
 
     try {
         await ensurePremiumSchema(pool);
-        const subscription = await getActiveSubscription(pool, req.user.id);
+        const subscription = await resolveUserSubscription(pool, req.user.id, { refreshPending: true });
         const isPremiumUser = Boolean(subscription);
 
         // Fetch the puzzle first to check whether it's free or premium.
@@ -283,7 +285,7 @@ router.post("/puzzles/:id/attempt", authenticateToken, async (req, res) => {
 router.get("/videos", authenticateToken, async (req, res) => {
     try {
         await ensurePremiumSchema(pool);
-        const subscription = await getActiveSubscription(pool, req.user.id);
+        const subscription = await resolveUserSubscription(pool, req.user.id, { refreshPending: true });
         const isPremiumUser = Boolean(subscription);
 
         // Free lessons are visible to all authenticated users.
@@ -320,15 +322,8 @@ router.post("/videos/:id/open", authenticateToken, async (req, res) => {
 
     try {
         await ensurePremiumSchema(pool);
-        const subscription = await getActiveSubscription(pool, req.user.id);
+        const subscription = await resolveUserSubscription(pool, req.user.id, { refreshPending: true });
         const isPremiumUser = Boolean(subscription);
-
-        if (!isPremiumUser) {
-            return res.status(403).json({
-                error: "Premium access required",
-                redirectTo: "subscription.html"
-            });
-        }
 
         const lessonResult = await pool.query(
             `SELECT * FROM video_lessons WHERE id = $1 LIMIT 1`,
@@ -340,6 +335,13 @@ router.post("/videos/:id/open", authenticateToken, async (req, res) => {
         }
 
         const lesson = lessonResult.rows[0];
+        if (lesson.is_premium && !isPremiumUser) {
+            return res.status(403).json({
+                error: "Premium access required",
+                redirectTo: "subscription.html"
+            });
+        }
+
         const progress = await pool.query(
             `INSERT INTO video_progress (user_id, lesson_id, opened_count, completed, last_opened_at, created_at, updated_at)
              VALUES ($1, $2, 1, FALSE, NOW(), NOW(), NOW())

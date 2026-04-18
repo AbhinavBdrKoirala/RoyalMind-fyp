@@ -846,6 +846,137 @@ router.post("/reset-password", resetPasswordLimiter, async (req, res) => {
     }
 });
 
+router.post("/change-password/request", authenticateToken, forgotPasswordLimiter, async (req, res) => {
+    const meta = getRequestMeta(req);
+
+    try {
+        await ensureAuthSchema();
+
+        const result = await pool.query(
+            "SELECT * FROM users WHERE id = $1 LIMIT 1",
+            [req.user.id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const row = result.rows[0];
+        if (row.is_verified !== true || !row.email) {
+            return res.status(400).json({ error: "A verified email is required before changing the password." });
+        }
+
+        const payload = await sendPasswordResetCode(row);
+        await logAuthEvent({
+            userId: row.id,
+            email: row.email,
+            action: "change_password_request",
+            status: "success",
+            ...meta,
+            details: { deliveryMethod: payload.deliveryMethod }
+        });
+
+        return res.json({
+            message: "A password reset code has been sent to your email address.",
+            ...payload
+        });
+    } catch (error) {
+        console.error(error);
+        await logAuthEvent({
+            userId: req.user?.id || null,
+            action: "change_password_request",
+            status: "error",
+            ...meta,
+            details: { code: error.code || "", message: error.message }
+        });
+        return res.status(500).json({ error: getMailErrorMessage(error, "Unable to send the password reset code right now.") });
+    }
+});
+
+router.post("/change-password/confirm", authenticateToken, resetPasswordLimiter, async (req, res) => {
+    const meta = getRequestMeta(req);
+
+    try {
+        await ensureAuthSchema();
+
+        const codeResult = validateVerificationCode(req.body?.code);
+        if (!codeResult.ok) {
+            return res.status(400).json({ error: codeResult.error });
+        }
+
+        const newPassword = String(req.body?.newPassword || "");
+        if (newPassword.length < 8) {
+            return res.status(400).json({ error: "Password must be at least 8 characters long" });
+        }
+
+        const result = await pool.query(
+            "SELECT * FROM users WHERE id = $1 LIMIT 1",
+            [req.user.id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        const row = result.rows[0];
+        if (!row.password_reset_code_hash || !row.password_reset_expires_at) {
+            return res.status(400).json({ error: "No password reset code is available. Request a new reset code first." });
+        }
+
+        const expectedHash = hashVerificationCode(codeResult.value);
+        const expiresAt = new Date(row.password_reset_expires_at);
+        if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now()) {
+            return res.status(400).json({ error: "Password reset code expired. Request a new reset code." });
+        }
+
+        if (expectedHash !== row.password_reset_code_hash) {
+            await logAuthEvent({
+                userId: row.id,
+                email: row.email,
+                action: "change_password_confirm",
+                status: "rejected",
+                ...meta,
+                details: { reason: "invalid_code" }
+            });
+            return res.status(400).json({ error: "Invalid password reset code" });
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+        await pool.query(
+            `UPDATE users
+             SET password = $1,
+                 password_reset_code_hash = NULL,
+                 password_reset_expires_at = NULL,
+                 password_reset_sent_at = NULL,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [hashedPassword, row.id]
+        );
+
+        await logAuthEvent({
+            userId: row.id,
+            email: row.email,
+            action: "change_password_confirm",
+            status: "success",
+            ...meta
+        });
+
+        return res.json({
+            message: "Password changed successfully."
+        });
+    } catch (error) {
+        console.error(error);
+        await logAuthEvent({
+            userId: req.user?.id || null,
+            action: "change_password_confirm",
+            status: "error",
+            ...meta,
+            details: { code: error.code || "", message: error.message }
+        });
+        return res.status(500).json({ error: "Unable to change the password right now." });
+    }
+});
+
 router.post("/change-email/request", authenticateToken, changeEmailRequestLimiter, async (req, res) => {
     const meta = getRequestMeta(req);
 

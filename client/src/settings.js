@@ -53,7 +53,15 @@ const resendEmailChangeButton = document.getElementById("resendEmailChange");
 const confirmEmailChangeButton = document.getElementById("confirmEmailChange");
 const cancelEmailChangeButton = document.getElementById("cancelEmailChange");
 const emailChangeHint = document.getElementById("emailChangeHint");
+const togglePasswordResetButton = document.getElementById("togglePasswordReset");
+const passwordResetPanel = document.getElementById("passwordResetPanel");
 const sendPasswordResetButton = document.getElementById("sendPasswordReset");
+const resendPasswordResetButton = document.getElementById("resendPasswordReset");
+const confirmPasswordResetButton = document.getElementById("confirmPasswordReset");
+const cancelPasswordResetButton = document.getElementById("cancelPasswordReset");
+const passwordResetCodeInput = document.getElementById("passwordResetCode");
+const passwordResetNewPasswordInput = document.getElementById("passwordResetNewPassword");
+const passwordResetConfirmPasswordInput = document.getElementById("passwordResetConfirmPassword");
 const passwordResetStatus = document.getElementById("passwordResetStatus");
 
 const DEFAULTS = {
@@ -239,6 +247,37 @@ function setEmailChangePanelOpen(open) {
     }
 }
 
+function setPasswordResetPanelOpen(open) {
+    if (!passwordResetPanel) return;
+    passwordResetPanel.classList.toggle("hidden", !open);
+    if (!open) {
+        if (passwordResetCodeInput) passwordResetCodeInput.value = "";
+        if (passwordResetNewPasswordInput) passwordResetNewPasswordInput.value = "";
+        if (passwordResetConfirmPasswordInput) passwordResetConfirmPasswordInput.value = "";
+        resendPasswordResetButton?.classList.add("hidden");
+        if (passwordResetStatus) {
+            passwordResetStatus.textContent = "Send a reset code to your current email.";
+        }
+    }
+}
+
+function validatePasswordResetMatch() {
+    const newPassword = passwordResetNewPasswordInput?.value || "";
+    const confirmPassword = passwordResetConfirmPasswordInput?.value || "";
+
+    if (newPassword.length < 8) {
+        showToast("Password must be at least 8 characters long.", "warning", "Check your password");
+        return false;
+    }
+
+    if (newPassword !== confirmPassword) {
+        showToast("The new password and confirmation do not match.", "warning", "Passwords do not match");
+        return false;
+    }
+
+    return true;
+}
+
 async function handleAuthFailure(response) {
     if (!response || (response.status !== 401 && response.status !== 403)) {
         return false;
@@ -353,15 +392,9 @@ async function hydrateSettings() {
 }
 
 async function sendPasswordReset() {
-    const user = getCurrentUser();
-    if (!user.email) {
-        showToast("No email is available on your account yet.", "error", "Cannot reset password");
-        return;
-    }
-
-    const response = await apiFetch("/api/auth/forgot-password", {
+    const response = await apiFetch("/api/auth/change-password/request", {
         method: "POST",
-        body: JSON.stringify({ email: user.email })
+        body: JSON.stringify({})
     });
 
     if (!response) {
@@ -383,7 +416,49 @@ async function sendPasswordReset() {
         passwordResetStatus.textContent = formatDeliveryHint(data, "A reset code has been sent to your email.");
     }
 
+    resendPasswordResetButton?.classList.remove("hidden");
     showToast(data.message || "Password reset code sent.", "success", "Check your email");
+}
+
+async function confirmPasswordReset() {
+    const code = passwordResetCodeInput?.value.trim() || "";
+    if (!/^\d{6}$/.test(code)) {
+        showToast("Please enter the 6-digit verification code.", "warning", "Code required");
+        return;
+    }
+
+    if (!validatePasswordResetMatch()) {
+        return;
+    }
+
+    const response = await apiFetch("/api/auth/change-password/confirm", {
+        method: "POST",
+        body: JSON.stringify({
+            code,
+            newPassword: passwordResetNewPasswordInput?.value || ""
+        })
+    });
+
+    if (!response) {
+        showToast("The backend is unavailable right now.", "error", "Reset unavailable");
+        return;
+    }
+
+    if (await handleAuthFailure(response)) {
+        return;
+    }
+
+    const data = await response.json();
+    if (!response.ok) {
+        showToast(data.error || "Could not change the password.", "error", "Reset failed");
+        return;
+    }
+
+    setPasswordResetPanelOpen(false);
+    if (passwordResetStatus) {
+        passwordResetStatus.textContent = "Password updated successfully.";
+    }
+    showToast(data.message || "Password changed successfully.", "success", "Password updated");
 }
 
 async function requestEmailChange() {
@@ -487,6 +562,12 @@ async function confirmEmailChange() {
 
 saveButton?.addEventListener("click", saveSettings);
 sendPasswordResetButton?.addEventListener("click", sendPasswordReset);
+resendPasswordResetButton?.addEventListener("click", sendPasswordReset);
+confirmPasswordResetButton?.addEventListener("click", confirmPasswordReset);
+togglePasswordResetButton?.addEventListener("click", () => {
+    setPasswordResetPanelOpen(passwordResetPanel?.classList.contains("hidden"));
+});
+cancelPasswordResetButton?.addEventListener("click", () => setPasswordResetPanelOpen(false));
 toggleEmailChangeButton?.addEventListener("click", () => {
     setEmailChangePanelOpen(emailChangePanel?.classList.contains("hidden"));
 });

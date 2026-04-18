@@ -3,12 +3,10 @@ const pool = require("../db");
 const authenticateToken = require("../middleware/authMiddleware");
 const {
     ensurePremiumSchema,
-    getActiveSubscription,
     mapSubscriptionStatus
 } = require("../utils/premiumData");
 const {
     buildCallbackUrls,
-    checkEsewaTransactionStatus,
     decodeEsewaSuccessData,
     formatAmount,
     getEsewaConfig,
@@ -16,6 +14,12 @@ const {
     signEsewaFields,
     verifyEsewaSignature
 } = require("../utils/esewa");
+const {
+    expireStalePendingPayments,
+    finalizeEsewaPayment,
+    getLatestPendingPaymentRow,
+    resolveUserSubscription
+} = require("../utils/subscriptionAccess");
 
 const router = express.Router();
 
@@ -32,9 +36,21 @@ function buildClientRedirect(path, params = {}) {
     return url.toString();
 }
 
-function getPlanDurationDays(planCode) {
-    if (planCode === "premium-monthly") return 30;
-    return 30;
+function isRefreshRequest(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
+function mapPendingPayment(paymentRow) {
+    if (!paymentRow) return null;
+
+    return {
+        transactionUuid: paymentRow.transaction_uuid,
+        status: paymentRow.status,
+        totalAmount: Number(paymentRow.total_amount || 0),
+        createdAt: paymentRow.created_at,
+        expiresAt: paymentRow.expires_at
+    };
 }
 
 function buildEsewaInitiationPayload(plan, payment) {
@@ -72,92 +88,16 @@ function buildEsewaInitiationPayload(plan, payment) {
     };
 }
 
-async function activateSubscriptionFromPayment(paymentRow) {
-    const planDetails = await pool.query(
-        `SELECT id, code, name, price_label, billing_period, description
-         FROM subscription_plans
-         WHERE id = $1
-         LIMIT 1`,
-        [paymentRow.plan_id]
-    );
+async function getSubscriptionSnapshot(userId, { refreshPending = false } = {}) {
+    await ensurePremiumSchema(pool);
+    await expireStalePendingPayments(pool, userId);
 
-    if (planDetails.rows.length === 0) {
-        throw new Error("Subscription plan is not configured");
-    }
+    const subscription = await resolveUserSubscription(pool, userId, { refreshPending });
+    const pendingPayment = subscription ? null : await getLatestPendingPaymentRow(pool, userId);
 
-    const plan = planDetails.rows[0];
-
-    await pool.query(
-        `UPDATE user_subscriptions
-         SET status = 'cancelled',
-             updated_at = NOW()
-         WHERE user_id = $1
-           AND status = 'active'`,
-        [paymentRow.user_id]
-    );
-
-    const activated = await pool.query(
-        `INSERT INTO user_subscriptions (user_id, plan_id, status, provider, provider_ref, started_at, expires_at, created_at, updated_at)
-         VALUES ($1, $2, 'active', 'esewa', $3, NOW(), NOW() + ($4 || ' days')::interval, NOW(), NOW())
-         RETURNING *`,
-        [paymentRow.user_id, paymentRow.plan_id, paymentRow.provider_ref || paymentRow.transaction_uuid, String(getPlanDurationDays(plan.code))]
-    );
-
-    return mapSubscriptionStatus({
-        ...activated.rows[0],
-        plan_name: plan.name,
-        plan_code: plan.code,
-        price_label: plan.price_label,
-        billing_period: plan.billing_period,
-        description: plan.description
-    });
-}
-
-async function finalizeEsewaPayment(paymentRow, successPayload = null) {
-    const statusPayload = await checkEsewaTransactionStatus({
-        productCode: paymentRow.product_code,
-        totalAmount: paymentRow.total_amount,
-        transactionUuid: paymentRow.transaction_uuid
-    });
-
-    const normalizedStatus = String(statusPayload.status || "").toUpperCase();
-    const providerRef = statusPayload.ref_id || paymentRow.provider_ref || null;
-
-    const updatedPayment = await pool.query(
-        `UPDATE subscription_payments
-         SET status = $1,
-             provider_ref = $2,
-             transaction_code = COALESCE($3, transaction_code),
-             verified_payload = $4::jsonb,
-             success_payload = CASE WHEN $5::jsonb = '{}'::jsonb THEN success_payload ELSE $5::jsonb END,
-             verification_checked_at = NOW(),
-             paid_at = CASE WHEN $1 = 'complete' THEN COALESCE(paid_at, NOW()) ELSE paid_at END,
-             updated_at = NOW()
-         WHERE id = $6
-         RETURNING *`,
-        [
-            normalizedStatus === "COMPLETE" ? "complete" : normalizedStatus.toLowerCase(),
-            providerRef,
-            successPayload?.transaction_code || statusPayload.ref_id || null,
-            JSON.stringify(statusPayload || {}),
-            JSON.stringify(successPayload || {}),
-            paymentRow.id
-        ]
-    );
-
-    if (normalizedStatus !== "COMPLETE") {
-        return {
-            payment: updatedPayment.rows[0],
-            subscription: null,
-            statusPayload
-        };
-    }
-
-    const subscription = await activateSubscriptionFromPayment(updatedPayment.rows[0]);
     return {
-        payment: updatedPayment.rows[0],
-        subscription,
-        statusPayload
+        subscription: subscription ? mapSubscriptionStatus(subscription) : mapSubscriptionStatus(null),
+        pendingPayment: mapPendingPayment(pendingPayment)
     };
 }
 
@@ -186,24 +126,52 @@ router.get("/plans", authenticateToken, async (req, res) => {
 
 router.get("/me", authenticateToken, async (req, res) => {
     try {
-        const subscription = await getActiveSubscription(pool, req.user.id);
-        const pendingPayment = await pool.query(
-            `SELECT transaction_uuid AS "transactionUuid", status, total_amount AS "totalAmount", created_at AS "createdAt"
-             FROM subscription_payments
-             WHERE user_id = $1
-               AND status = 'pending'
-             ORDER BY created_at DESC
-             LIMIT 1`,
+        const snapshot = await getSubscriptionSnapshot(req.user.id, {
+            refreshPending: isRefreshRequest(req.query?.refresh)
+        });
+
+        res.json(snapshot);
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).json({ error: "Unable to load subscription status" });
+    }
+});
+
+router.get("/history", authenticateToken, async (req, res) => {
+    try {
+        await ensurePremiumSchema(pool);
+
+        const result = await pool.query(
+            `SELECT
+                sp.name AS "planName",
+                sp.code AS "planCode",
+                sp.price_label AS "priceLabel",
+                py.transaction_uuid AS "transactionUuid",
+                py.status,
+                py.total_amount AS "totalAmount",
+                py.provider,
+                py.provider_ref AS "providerRef",
+                py.created_at AS "createdAt",
+                py.updated_at AS "updatedAt",
+                py.paid_at AS "paidAt",
+                py.expires_at AS "expiresAt"
+             FROM subscription_payments py
+             JOIN subscription_plans sp ON sp.id = py.plan_id
+             WHERE py.user_id = $1
+             ORDER BY py.created_at DESC, py.id DESC
+             LIMIT 12`,
             [req.user.id]
         );
 
         res.json({
-            subscription: mapSubscriptionStatus(subscription),
-            pendingPayment: pendingPayment.rows[0] || null
+            payments: result.rows.map((row) => ({
+                ...row,
+                totalAmount: Number(row.totalAmount || 0)
+            }))
         });
     } catch (error) {
         console.error(error.message);
-        res.status(500).json({ error: "Unable to load subscription status" });
+        res.status(500).json({ error: "Unable to load subscription history" });
     }
 });
 
@@ -213,6 +181,16 @@ router.post("/esewa/initiate", authenticateToken, async (req, res) => {
 
         if (!isEsewaConfigured()) {
             return res.status(500).json({ error: "eSewa is not configured on the server yet." });
+        }
+
+        await expireStalePendingPayments(pool, req.user.id);
+
+        const activeSubscription = await resolveUserSubscription(pool, req.user.id, { refreshPending: true });
+        if (activeSubscription) {
+            return res.status(409).json({
+                error: "Premium is already active on this account.",
+                subscription: mapSubscriptionStatus(activeSubscription)
+            });
         }
 
         const requestedPlanCode = String(req.body?.planCode || "premium-monthly").trim() || "premium-monthly";
@@ -226,6 +204,14 @@ router.post("/esewa/initiate", authenticateToken, async (req, res) => {
         }
 
         const plan = planResult.rows[0];
+        const existingPendingPayment = await getLatestPendingPaymentRow(pool, req.user.id);
+        if (existingPendingPayment) {
+            return res.status(409).json({
+                error: "A premium payment is already pending verification. Refresh its status or cancel it before starting a new one.",
+                pendingPayment: mapPendingPayment(existingPendingPayment)
+            });
+        }
+
         const transactionUuid = `sub-${req.user.id}-${Date.now()}`;
         const totalAmount = Number(plan.price_amount || 0);
 
@@ -313,7 +299,7 @@ router.get("/esewa/success", async (req, res) => {
             }));
         }
 
-        const result = await finalizeEsewaPayment(payment, decodedData);
+        const result = await finalizeEsewaPayment(pool, payment, decodedData);
         if (!result.subscription) {
             return res.redirect(buildClientRedirect("subscription.html", {
                 payment: "failed",
@@ -369,7 +355,7 @@ router.delete("/me", authenticateToken, async (req, res) => {
     try {
         await ensurePremiumSchema(pool);
 
-        const cancelled = await pool.query(
+        const cancelledSubscriptions = await pool.query(
             `UPDATE user_subscriptions
              SET status = 'cancelled',
                  expires_at = CASE
@@ -383,11 +369,28 @@ router.delete("/me", authenticateToken, async (req, res) => {
             [req.user.id]
         );
 
+        const cancelledPayments = await pool.query(
+            `UPDATE subscription_payments
+             SET status = 'cancelled',
+                 updated_at = NOW()
+             WHERE user_id = $1
+               AND status = 'pending'
+             RETURNING id`,
+            [req.user.id]
+        );
+
+        const cancelledAny = cancelledSubscriptions.rowCount > 0 || cancelledPayments.rowCount > 0;
+        const message = cancelledSubscriptions.rowCount > 0
+            ? "Premium access cancelled"
+            : cancelledPayments.rowCount > 0
+                ? "Pending premium payment cancelled"
+                : "No active or pending premium access was found";
+
         res.json({
-            cancelled: cancelled.rowCount > 0,
-            message: cancelled.rowCount > 0
-                ? "Premium access cancelled"
-                : "No active premium access was found",
+            cancelled: cancelledAny,
+            cancelledSubscription: cancelledSubscriptions.rowCount > 0,
+            cancelledPendingPayment: cancelledPayments.rowCount > 0,
+            message,
             subscription: mapSubscriptionStatus(null)
         });
     } catch (error) {

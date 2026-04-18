@@ -1,9 +1,16 @@
 const crypto = require("crypto");
+const dns = require("dns");
 const nodemailer = require("nodemailer");
 const { getJwtSecret } = require("./jwt");
 
 let cachedTransporter = null;
 let cachedTransporterKey = "";
+
+try {
+    dns.setDefaultResultOrder("ipv4first");
+} catch {
+    // Ignore environments that do not support overriding DNS result order.
+}
 
 const PLACEHOLDER_VALUES = new Set([
     "",
@@ -82,7 +89,9 @@ function getTransporter() {
 
     if (hasConfiguredValue(process.env.GMAIL_USER) && hasConfiguredValue(process.env.GMAIL_APP_PASSWORD)) {
         cachedTransporter = nodemailer.createTransport({
-            service: "gmail",
+            host: "smtp.gmail.com",
+            port: 465,
+            secure: true,
             auth: {
                 user: process.env.GMAIL_USER,
                 pass: process.env.GMAIL_APP_PASSWORD

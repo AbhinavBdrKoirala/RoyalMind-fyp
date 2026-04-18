@@ -45,6 +45,12 @@ let selectedSquare = null;
 let premiumUnlocked = false;
 let puzzleSolved = false;
 let audioContext = null;
+let solutionPlaybackTimer = null;
+
+function getRequestedPuzzleId() {
+    const params = new URLSearchParams(window.location.search);
+    return String(params.get("puzzle") || "").trim();
+}
 
 if (!token) {
     appUi.notify("Please log in to access puzzles.", {
@@ -164,6 +170,12 @@ function playUiSound(kind = "move") {
     } catch {
         // ignore audio errors
     }
+}
+
+function clearSolutionPlayback() {
+    if (!solutionPlaybackTimer) return;
+    clearTimeout(solutionPlaybackTimer);
+    solutionPlaybackTimer = null;
 }
 
 function normalizeAppearanceToken(value, fallback) {
@@ -369,6 +381,59 @@ function setPuzzleMessage(message, tone = "info") {
 function clearPuzzleMessage() {
     if (!puzzleStatus) return;
     puzzleStatus.classList.add("hidden");
+}
+
+function renderSolutionText(solutionMoves) {
+    if (!puzzleSolution || !currentPuzzle?.fen) return;
+
+    const line = formatPuzzlePv(solutionMoves || [], currentPuzzle.fen);
+    const solvedMeta = currentPuzzle?.solvedAt ? ` Solved on ${formatDateTimeLabel(currentPuzzle.solvedAt)}.` : "";
+    puzzleSolution.textContent = line ? `Solution line: ${line}.${solvedMeta}`.trim() : "No stored line.";
+    puzzleSolution.classList.remove("hidden");
+}
+
+function playSolutionLine(solutionMoves, { resetToStart = false } = {}) {
+    clearSolutionPlayback();
+
+    if (!Array.isArray(solutionMoves) || solutionMoves.length === 0) {
+        return;
+    }
+
+    if (resetToStart && currentPuzzle?.fen) {
+        puzzlePosition = parseFenPosition(currentPuzzle.fen);
+        puzzleBoardState = puzzlePosition?.board || null;
+        selectedSquare = null;
+        renderPuzzleBoard();
+    }
+
+    const step = (index) => {
+        if (!puzzlePosition || index >= solutionMoves.length) {
+            solutionPlaybackTimer = null;
+            return;
+        }
+
+        const parsedMove = parseUciMove(solutionMoves[index]);
+        const moveMeta = parsedMove
+            ? createMoveMetaFromBoard(puzzlePosition.board, parsedMove, puzzlePosition.enPassantTarget)
+            : null;
+
+        if (!moveMeta) {
+            solutionPlaybackTimer = null;
+            return;
+        }
+
+        puzzlePosition = applyMoveToPosition(puzzlePosition, moveMeta);
+        puzzleBoardState = puzzlePosition.board;
+        renderPuzzleBoard();
+
+        solutionPlaybackTimer = setTimeout(() => {
+            step(index + 1);
+        }, 550);
+    };
+
+    solutionPlaybackTimer = setTimeout(() => {
+        step(0);
+    }, 250);
 }
 
 function renderPuzzleMeta(puzzle, position = puzzlePosition) {
@@ -1040,16 +1105,19 @@ async function submitAttempt(moveUci, moveMeta) {
     }
 
     if (data.correct) {
+        currentPuzzle.solutionMoves = Array.isArray(data.solutionMoves) ? data.solutionMoves : (currentPuzzle.solutionMoves || []);
         if (moveMeta) {
             puzzlePosition = applyMoveToPosition(puzzlePosition, moveMeta);
             puzzleBoardState = puzzlePosition.board;
             puzzleSolved = true;
+            selectedSquare = null;
             renderPuzzleBoard();
         }
         playUiSound("success");
         updatePuzzleProgress(data.progress || null);
-        setPuzzleMessage(data.message || "Correct move.", "success");
-        revealSolution(data.solutionMoves || []);
+        setPuzzleMessage(data.message || "Correct move. Completing the line.", "success");
+        renderSolutionText(currentPuzzle.solutionMoves);
+        playSolutionLine(currentPuzzle.solutionMoves.slice(1));
         return;
     }
 
@@ -1059,27 +1127,13 @@ async function submitAttempt(moveUci, moveMeta) {
 }
 
 function revealSolution(solutionMoves) {
-    if (!puzzleSolution || !currentPuzzle?.fen) return;
+    if (!currentPuzzle?.fen) return;
 
-    if (!puzzleSolved && puzzlePosition && Array.isArray(solutionMoves) && solutionMoves.length > 0) {
-        const firstMove = parseUciMove(solutionMoves[0]);
-        const moveMeta = firstMove
-            ? createMoveMetaFromBoard(puzzlePosition.board, firstMove, puzzlePosition.enPassantTarget)
-            : null;
-
-        if (moveMeta) {
-            puzzlePosition = applyMoveToPosition(puzzlePosition, moveMeta);
-            puzzleBoardState = puzzlePosition.board;
-            puzzleSolved = true;
-            selectedSquare = null;
-            renderPuzzleBoard();
-        }
-    }
-
-    const line = formatPuzzlePv(solutionMoves || [], currentPuzzle.fen);
-    const solvedMeta = currentPuzzle?.solvedAt ? ` Solved on ${formatDateTimeLabel(currentPuzzle.solvedAt)}.` : "";
-    puzzleSolution.textContent = line ? `Solution line: ${line}.${solvedMeta}`.trim() : "No stored line.";
-    puzzleSolution.classList.remove("hidden");
+    currentPuzzle.solutionMoves = Array.isArray(solutionMoves) ? solutionMoves : (currentPuzzle.solutionMoves || []);
+    puzzleSolved = true;
+    selectedSquare = null;
+    renderSolutionText(currentPuzzle.solutionMoves);
+    playSolutionLine(currentPuzzle.solutionMoves, { resetToStart: true });
 }
 
 async function openPuzzle(id) {
@@ -1106,6 +1160,7 @@ async function openPuzzle(id) {
     }
 
     currentPuzzle = data.puzzle;
+    clearSolutionPlayback();
     renderPuzzleList(puzzleCatalog);
     puzzlePosition = parseFenPosition(currentPuzzle.fen);
     puzzleBoardState = puzzlePosition?.board || null;
@@ -1183,6 +1238,16 @@ async function initPuzzles() {
         if (!button) return;
         openPuzzle(button.dataset.puzzleId);
     });
+
+    const requestedPuzzleId = getRequestedPuzzleId();
+    const requestedPuzzle = requestedPuzzleId
+        ? puzzleCatalog.find((puzzle) => String(puzzle.id) === requestedPuzzleId)
+        : null;
+
+    if (requestedPuzzle) {
+        openPuzzle(requestedPuzzle.id);
+        return;
+    }
 
     if (puzzleCatalog.length > 0) {
         openPuzzle(puzzleCatalog[0].id);

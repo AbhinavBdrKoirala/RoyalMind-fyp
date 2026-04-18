@@ -306,7 +306,29 @@
                             <h3>Change password</h3>
                             <p id="passwordResetStatus">Send a reset code to your current email.</p>
                         </div>
-                        <button id="sendPasswordReset" class="settings-secondary" type="button">Reset</button>
+                        <button id="togglePasswordReset" class="settings-secondary" type="button">Change</button>
+                    </div>
+                    <div id="passwordResetPanel" class="settings-inline-panel hidden">
+                        <div class="settings-inline-actions">
+                            <button id="sendPasswordReset" class="settings-secondary" type="button">Send Code</button>
+                            <button id="resendPasswordReset" class="settings-secondary hidden" type="button">Resend Code</button>
+                        </div>
+                        <label class="settings-field full">
+                            Verification Code
+                            <input id="passwordResetCode" type="text" inputmode="numeric" autocomplete="one-time-code" placeholder="6-digit code" />
+                        </label>
+                        <label class="settings-field full">
+                            New Password
+                            <input id="passwordResetNewPassword" type="password" autocomplete="new-password" placeholder="New password" />
+                        </label>
+                        <label class="settings-field full">
+                            Confirm New Password
+                            <input id="passwordResetConfirmPassword" type="password" autocomplete="new-password" placeholder="Confirm new password" />
+                        </label>
+                        <div class="settings-inline-actions">
+                            <button id="confirmPasswordReset" class="settings-save" type="button">Update Password</button>
+                            <button id="cancelPasswordReset" class="settings-secondary" type="button">Cancel</button>
+                        </div>
                     </div>
                     <div class="settings-row">
                         <div>
